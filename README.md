@@ -156,7 +156,7 @@ Maps chain IDs to local MDBX database paths where external chain data is stored.
 ```json
 {
   "11155111": "/multichain/sepolia",
-  "26400": "/multichain/stavanger"
+  "50591822": "/multichain/stavanger"
 }
 ```
 
@@ -169,11 +169,16 @@ Configures which chains pelacli monitors for bridge events.
   {
     "ChainID": 11155111,
     "DBPath": "/multichain/sepolia",
-    "APIKey": "YOUR_INFURA_KEY",
-    "StartBlock": 9214937,
-    "Contracts": {
-      "Bridge": "0x844E740Ea7F404c6208fd85Ee6114a14F8037df7"
-    }
+    "APIKey": "<sepolia_wss_url>",
+    "StartBlock": 9754075,
+    "BlockOffset": 1
+  },
+  {
+    "ChainID": 50591822,
+    "DBPath": "/multichain/stavanger",
+    "APIKey": "<stavanger_wss_url>",
+    "StartBlock": 5526445,
+    "BlockOffset": 1
   }
 ]
 ```
