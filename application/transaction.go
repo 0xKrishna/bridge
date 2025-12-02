@@ -2,23 +2,25 @@ package application
 
 import (
 	"github.com/0xAtelerix/sdk/gosdk/apptypes"
-	"github.com/ledgerwatch/erigon-lib/kv" //nolint:staticcheck // Required for interface
+	"github.com/ledgerwatch/erigon-lib/kv"
 )
 
 // Transaction is a minimal stub to satisfy the SDK's AppTransaction interface.
 // This bridge app doesn't use appchain transactions - all processing happens
 // via external chain events in StateTransition.
+//
+//nolint:recvcheck // Mixed receivers required: Unmarshal needs pointer, others need value for interface
 type Transaction struct {
 	TxHash [32]byte `json:"hash"`
 }
 
 var _ apptypes.AppTransaction[Receipt] = &Transaction{}
 
-func (t *Transaction) Unmarshal(data []byte) error {
+func (*Transaction) Unmarshal(_ []byte) error {
 	return nil
 }
 
-func (t Transaction) Marshal() ([]byte, error) {
+func (Transaction) Marshal() ([]byte, error) {
 	return nil, nil
 }
 

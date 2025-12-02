@@ -95,11 +95,11 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("JSON-RPC service never became ready: %v", err)
 	}
 
-	// Test getBridgeStats RPC method
-	rpcRequest := map[string]interface{}{
+	// Test getBridgeStatus RPC method
+	rpcRequest := map[string]any{
 		"jsonrpc": "2.0",
-		"method":  "getBridgeStats",
-		"params":  []interface{}{},
+		"method":  "getBridgeStatus",
+		"params":  []any{map[string]string{"bridgeId": "0x1234"}},
 		"id":      1,
 	}
 
@@ -129,11 +129,13 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("unexpected HTTP status: %s", resp.Status)
 	}
 
-	// Verify we get a valid JSON-RPC response
-	var rpcResp map[string]interface{}
+	// Verify we get a valid JSON-RPC response (error expected since bridge doesn't exist)
+	var rpcResp map[string]any
+
 	err = json.NewDecoder(resp.Body).Decode(&rpcResp)
 	require.NoError(t, err, "decode rpc response")
-	require.NotNil(t, rpcResp["result"], "expected result in response")
+	// We expect an error since the bridge doesn't exist, but the RPC endpoint works
+	require.NotNil(t, rpcResp["error"], "expected error in response for non-existent bridge")
 
 	// graceful shutdown
 	// The real program listens for SIGINT/SIGTERM,

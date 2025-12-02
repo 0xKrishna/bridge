@@ -12,5 +12,4 @@ const (
 	// Bridge errors
 	ErrBridgeNotFound  = Error("bridge not found")
 	ErrInvalidBridgeID = Error("invalid bridge ID")
-	ErrInvalidChainID  = Error("invalid chain ID")
 )

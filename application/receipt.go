@@ -4,6 +4,8 @@ import "github.com/0xAtelerix/sdk/gosdk/apptypes"
 
 // Receipt is a minimal stub to satisfy the SDK's Receipt interface.
 // This bridge app doesn't use receipts - bridge events are stored directly.
+//
+//nolint:errname // Name must be Receipt to implement apptypes.Receipt interface
 type Receipt struct {
 	TxnHash  [32]byte                 `json:"txHash"`
 	TxStatus apptypes.TxReceiptStatus `json:"status"`
@@ -19,6 +21,6 @@ func (r Receipt) Status() apptypes.TxReceiptStatus {
 	return r.TxStatus
 }
 
-func (r Receipt) Error() string {
+func (Receipt) Error() string {
 	return ""
 }

@@ -28,6 +28,8 @@ const (
 )
 
 // Cached parsed ABI for BridgeInitiated event
+//
+//nolint:gochecknoglobals // Intentionally cached at package level for performance
 var bridgeInitiatedABI abi.ABI
 
 func init() {
@@ -42,6 +44,7 @@ func init() {
 		`"name":"BridgeInitiated","type":"event"}]`
 
 	var err error
+
 	bridgeInitiatedABI, err = abi.JSON(strings.NewReader(eventABI))
 	if err != nil {
 		panic("failed to parse BridgeInitiated ABI: " + err.Error())
@@ -49,7 +52,7 @@ func init() {
 }
 
 var (
-	_ gosdk.StateTransitionSimplified                       = &StateTransition{}
+	_ gosdk.StateTransitionSimplified                      = &StateTransition{}
 	_ gosdk.StateTransitionInterface[Transaction, Receipt] = gosdk.BatchProcesser[Transaction, Receipt]{}
 )
 
@@ -70,6 +73,7 @@ func (st *StateTransition) ProcessBlock(
 ) ([]apptypes.ExternalTransaction, error) {
 	if !gosdk.IsEvmChain(apptypes.ChainType(b.ChainID)) {
 		log.Warn().Uint64("chainID", b.ChainID).Msg("Unsupported chain type, skipping...")
+
 		return nil, nil
 	}
 
@@ -125,9 +129,11 @@ func (*StateTransition) processReceipt(
 		}
 
 		isBridgeContract := false
+
 		for _, addr := range bridgeAddresses {
 			if vlog.Address == common.HexToAddress(addr) {
 				isBridgeContract = true
+
 				break
 			}
 		}
@@ -141,18 +147,26 @@ func (*StateTransition) processReceipt(
 			bridgeEvent, err := decodeBridgeInitiatedEvent(vlog)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to decode BridgeInitiated event")
+
 				continue
 			}
 
 			// Validate source chain matches
 			if bridgeEvent.SourceChain != chainID {
-				log.Warn().Str("bridgeId", bridgeEvent.BridgeID).Msg("Source chain mismatch, skipping")
+				log.Warn().
+					Str("bridgeId", bridgeEvent.BridgeID).
+					Msg("Source chain mismatch, skipping")
+
 				continue
 			}
 
 			// Validate destination chain is supported
 			if !isChainSupported(bridgeEvent.DestChain) {
-				log.Warn().Str("bridgeId", bridgeEvent.BridgeID).Uint64("destChain", bridgeEvent.DestChain).Msg("Unsupported destination chain")
+				log.Warn().
+					Str("bridgeId", bridgeEvent.BridgeID).
+					Uint64("destChain", bridgeEvent.DestChain).
+					Msg("Unsupported destination chain")
+
 				continue
 			}
 
@@ -160,14 +174,17 @@ func (*StateTransition) processReceipt(
 			existing, err := dbtx.GetOne(BridgeEventsBucket, []byte(bridgeEvent.BridgeID))
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to check existing bridge event")
+
 				continue
 			}
+
 			if len(existing) > 0 {
 				continue
 			}
 
-			if err := storeBridgeEvent(dbtx, bridgeEvent); err != nil {
-				log.Error().Err(err).Msg("Failed to store bridge event")
+			if storeErr := storeBridgeEvent(dbtx, bridgeEvent); storeErr != nil {
+				log.Error().Err(storeErr).Msg("Failed to store bridge event")
+
 				continue
 			}
 
@@ -181,6 +198,7 @@ func (*StateTransition) processReceipt(
 			)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to create mint transaction")
+
 				continue
 			}
 
@@ -210,12 +228,16 @@ func (*StateTransition) processReceipt(
 			if err := json.Unmarshal(existing, &event); err != nil {
 				continue
 			}
+
 			if event.Status == BridgeStatusCompleted {
 				continue
 			}
 
 			if err := markBridgeCompleted(dbtx, bridgeID, vlog.TxHash.Hex()); err != nil {
-				log.Error().Err(err).Str("bridgeId", bridgeID).Msg("Failed to mark bridge completed")
+				log.Error().
+					Err(err).
+					Str("bridgeId", bridgeID).
+					Msg("Failed to mark bridge completed")
 			}
 
 		default:
@@ -276,14 +298,24 @@ func createMintTransaction(
 	amount string,
 	recipientAddress string,
 ) (apptypes.ExternalTransaction, error) {
-	payload, err := createBridgePayload(bridgeID, sourceChainID, tokenAddress, amount, recipientAddress)
+	payload, err := createBridgePayload(
+		bridgeID,
+		sourceChainID,
+		tokenAddress,
+		amount,
+		recipientAddress,
+	)
 	if err != nil {
 		return apptypes.ExternalTransaction{}, err
 	}
 
 	extTx, err := external.NewExTxBuilder(payload, apptypes.ChainType(destChainID)).Build()
 	if err != nil {
-		log.Error().Err(err).Uint64("destChain", destChainID).Msg("Failed to build external transaction")
+		log.Error().
+			Err(err).
+			Uint64("destChain", destChainID).
+			Msg("Failed to build external transaction")
+
 		return apptypes.ExternalTransaction{}, err
 	}
 
@@ -317,6 +349,7 @@ func createBridgePayload(
 	if !ok {
 		return nil, Error("invalid amount: " + amount)
 	}
+
 	copy(payload[96:128], amountBig.FillBytes(make([]byte, 32)))
 
 	// recipient (address, LEFT-aligned)
@@ -328,7 +361,8 @@ func createBridgePayload(
 
 // isChainSupported checks if a chain ID is supported by the bridge
 func isChainSupported(chainID uint64) bool {
-	return chainID == uint64(gosdk.EthereumSepoliaChainID) || chainID == uint64(gosdk.StavangerTestnetChainID)
+	return chainID == uint64(gosdk.EthereumSepoliaChainID) ||
+		chainID == uint64(gosdk.StavangerTestnetChainID)
 }
 
 // mapTokenAddress converts token addresses for cross-chain compatibility
@@ -338,12 +372,14 @@ func mapTokenAddress(tokenAddress string, sourceChainID uint64) common.Address {
 	normalizedToken := strings.ToLower(tokenAddress)
 
 	// Sepolia → Stavanger: POL ERC20 to native
-	if normalizedToken == strings.ToLower(sepoliaPOL) && sourceChainID == uint64(gosdk.EthereumSepoliaChainID) {
+	if normalizedToken == strings.ToLower(sepoliaPOL) &&
+		sourceChainID == uint64(gosdk.EthereumSepoliaChainID) {
 		return common.Address{}
 	}
 
 	// Stavanger → Sepolia: native to POL ERC20
-	if normalizedToken == "0x0000000000000000000000000000000000000000" && sourceChainID == uint64(gosdk.StavangerTestnetChainID) {
+	if normalizedToken == "0x0000000000000000000000000000000000000000" &&
+		sourceChainID == uint64(gosdk.StavangerTestnetChainID) {
 		return common.HexToAddress(sepoliaPOL)
 	}
 
@@ -383,12 +419,14 @@ func markBridgeCompleted(dbtx kv.RwTx, bridgeID, claimTxHash string) error {
 
 	if len(eventData) == 0 {
 		log.Warn().Str("bridgeId", bridgeID).Msg("Bridge event not found for completion")
+
 		return nil
 	}
 
 	var event BridgeEvent
-	if err := json.Unmarshal(eventData, &event); err != nil {
-		return err
+
+	if unmarshalErr := json.Unmarshal(eventData, &event); unmarshalErr != nil {
+		return unmarshalErr
 	}
 
 	event.Status = BridgeStatusCompleted
@@ -404,5 +442,6 @@ func markBridgeCompleted(dbtx kv.RwTx, bridgeID, claimTxHash string) error {
 	}
 
 	log.Info().Str("bridgeId", bridgeID).Msg("Bridge marked as completed")
+
 	return nil
 }

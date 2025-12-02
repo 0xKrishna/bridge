@@ -197,13 +197,10 @@ Configures where pelacli sends ExternalTransactions.
 
 ## API Endpoints
 
-The bridge exposes JSON-RPC endpoints for querying bridge state:
+The bridge exposes a JSON-RPC endpoint for querying bridge state:
 
 ### Bridge Methods
-- `getBridgeEvent(bridgeId)` - Get full bridge event details
 - `getBridgeStatus(bridgeId)` - Get bridge status and tx hashes
-- `listPendingBridges(destChainId)` - List pending bridges for a chain
-- `getBridgeStats()` - Get bridge statistics
 
 Example:
 ```bash

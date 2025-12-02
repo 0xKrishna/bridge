@@ -9,19 +9,19 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/0xAtelerix/example/application/api"
 	"github.com/0xAtelerix/sdk/gosdk"
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/0xAtelerix/sdk/gosdk/rpc"
 	"github.com/0xAtelerix/sdk/gosdk/txpool"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	mdbxlog "github.com/ledgerwatch/log/v3"
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/0xAtelerix/example/application"
+	"github.com/0xAtelerix/example/application/api"
 )
 
 const ChainID = 42
