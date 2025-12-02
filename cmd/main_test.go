@@ -18,8 +18,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	mdbxlog "github.com/ledgerwatch/log/v3"
 	"github.com/stretchr/testify/require"
-
-	"github.com/0xAtelerix/example/application"
 )
 
 func waitUntil(ctx context.Context, f func() bool) error {
@@ -97,22 +95,17 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("JSON-RPC service never became ready: %v", err)
 	}
 
-	// build & send a bridge transaction
-	tx := application.BridgeTransaction{
-		BridgeID:    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		SourceChain: 11155111, // Sepolia
-		DestChain:   50591822, // Stavanger
-		Token:       "0x6a7c3f4b0651d6da389ad1d11d962ea458cdca70",
-		Amount:      1000000,
-		Sender:      "0xSenderAddress",
-		Recipient:   "0xRecipientAddress",
-		Status:      "Pending",
-		TxHash:      "deadbeef",
+	// Test getBridgeStats RPC method
+	rpcRequest := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "getBridgeStats",
+		"params":  []interface{}{},
+		"id":      1,
 	}
 
 	var buf bytes.Buffer
-	if err = json.NewEncoder(&buf).Encode(tx); err != nil {
-		t.Fatalf("encode tx: %v", err)
+	if err = json.NewEncoder(&buf).Encode(rpcRequest); err != nil {
+		t.Fatalf("encode rpc request: %v", err)
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -135,6 +128,12 @@ func TestEndToEnd(t *testing.T) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		t.Fatalf("unexpected HTTP status: %s", resp.Status)
 	}
+
+	// Verify we get a valid JSON-RPC response
+	var rpcResp map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&rpcResp)
+	require.NoError(t, err, "decode rpc response")
+	require.NotNil(t, rpcResp["result"], "expected result in response")
 
 	// graceful shutdown
 	// The real program listens for SIGINT/SIGTERM,

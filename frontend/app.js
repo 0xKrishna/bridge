@@ -1,3 +1,9 @@
+// Auto-refresh intervals
+let historyRefreshInterval = null;
+let balanceRefreshInterval = null;
+const HISTORY_REFRESH_MS = 2000; // 2 seconds
+const BALANCE_REFRESH_MS = 5000; // 5 seconds
+
 // Configuration - DEPLOYED AND READY!
 const CONFIG = {
     BRIDGE_SEPOLIA: '0x844E740Ea7F404c6208fd85Ee6114a14F8037df7', // Sepolia bridge address
@@ -155,6 +161,12 @@ async function connectWallet() {
         showStatus('Wallet connected successfully!', 'success');
         updateBalances();
 
+        // Start balance auto-refresh
+        if (!balanceRefreshInterval) {
+            balanceRefreshInterval = setInterval(updateBalances, BALANCE_REFRESH_MS);
+            console.log('Balance auto-refresh started');
+        }
+
     } catch (error) {
         console.error('Wallet connection error:', error);
         showStatus('Failed to connect wallet: ' + error.message, 'error');
@@ -268,10 +280,18 @@ async function swapDirection() {
     updateBalances();
 }
 
-// Cached providers for faster RPC calls
+// Provider cache with periodic refresh to avoid stale data
 const providerCache = {};
+const PROVIDER_REFRESH_MS = 30000; // Refresh providers every 30 seconds
+let lastProviderRefresh = 0;
 
 function getProvider(rpcUrl) {
+    const now = Date.now();
+    // Clear cache periodically to avoid stale connections
+    if (now - lastProviderRefresh > PROVIDER_REFRESH_MS) {
+        Object.keys(providerCache).forEach(key => delete providerCache[key]);
+        lastProviderRefresh = now;
+    }
     if (!providerCache[rpcUrl]) {
         providerCache[rpcUrl] = new ethers.providers.JsonRpcProvider(rpcUrl);
     }
@@ -282,11 +302,6 @@ function getProvider(rpcUrl) {
 async function updateBalances() {
     if (!account || !currentFromNetwork || !currentToNetwork) return;
 
-    // Show loading state immediately
-    document.getElementById('fromBalance').textContent = 'Balance: Loading...';
-    document.getElementById('toBalance').textContent = 'Balance: Loading...';
-    document.getElementById('bridgeLiquidity').textContent = 'Liquidity: Loading...';
-
     try {
         const fromNetwork = NETWORKS[currentFromNetwork];
         const toNetwork = NETWORKS[currentToNetwork];
@@ -294,18 +309,18 @@ async function updateBalances() {
         const fromProvider = getProvider(fromNetwork.rpcUrl);
         const toProvider = getProvider(toNetwork.rpcUrl);
 
-        // Prepare all fetch promises
+        // Prepare all fetch promises - use 'latest' block tag to avoid caching
         const fetchFromBalance = fromNetwork.tokenType === 'Native'
-            ? fromProvider.getBalance(account)
-            : new ethers.Contract(fromNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], fromProvider).balanceOf(account);
+            ? fromProvider.getBalance(account, 'latest')
+            : new ethers.Contract(fromNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], fromProvider).balanceOf(account, {blockTag: 'latest'});
 
         const fetchToBalance = toNetwork.tokenType === 'Native'
-            ? toProvider.getBalance(account)
-            : new ethers.Contract(toNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], toProvider).balanceOf(account);
+            ? toProvider.getBalance(account, 'latest')
+            : new ethers.Contract(toNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], toProvider).balanceOf(account, {blockTag: 'latest'});
 
         const fetchLiquidity = toNetwork.tokenType === 'Native'
-            ? toProvider.getBalance(toNetwork.bridgeAddress)
-            : new ethers.Contract(toNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], toProvider).balanceOf(toNetwork.bridgeAddress);
+            ? toProvider.getBalance(toNetwork.bridgeAddress, 'latest')
+            : new ethers.Contract(toNetwork.tokenAddress, ['function balanceOf(address) view returns (uint256)'], toProvider).balanceOf(toNetwork.bridgeAddress, {blockTag: 'latest'});
 
         // Run all fetches in parallel
         const [fromBal, toBal, liquidity] = await Promise.all([fetchFromBalance, fetchToBalance, fetchLiquidity]);
@@ -315,12 +330,15 @@ async function updateBalances() {
         window.bridgeLiquidity = liquidity;
 
         // Update UI
-        document.getElementById('fromBalance').textContent =
-            `Balance: ${parseFloat(ethers.utils.formatEther(fromBalance)).toFixed(4)} POL`;
-        document.getElementById('toBalance').textContent =
-            `Balance: ${parseFloat(ethers.utils.formatEther(toBalance)).toFixed(4)} POL`;
-        document.getElementById('bridgeLiquidity').textContent =
-            `Liquidity: ${parseFloat(ethers.utils.formatEther(liquidity)).toFixed(2)} POL`;
+        const fromBalFormatted = parseFloat(ethers.utils.formatEther(fromBalance)).toFixed(4);
+        const toBalFormatted = parseFloat(ethers.utils.formatEther(toBalance)).toFixed(4);
+        const liqFormatted = parseFloat(ethers.utils.formatEther(liquidity)).toFixed(2);
+
+        document.getElementById('fromBalance').textContent = `Balance: ${fromBalFormatted} POL`;
+        document.getElementById('toBalance').textContent = `Balance: ${toBalFormatted} POL`;
+        document.getElementById('bridgeLiquidity').textContent = `Liquidity: ${liqFormatted} POL`;
+
+        console.log(`[Balance] From: ${fromBalFormatted}, To: ${toBalFormatted}, Liq: ${liqFormatted}`);
 
         validateBridgeButton();
 
@@ -697,8 +715,21 @@ async function loadHistory() {
     // Update localStorage with real statuses
     localStorage.setItem('bridgeHistory', JSON.stringify(updatedHistory));
 
-    historyList.innerHTML = updatedHistory.map(tx => {
-        // Determine explorer URLs
+    // Auto-refresh: start interval if there are pending transactions, stop if all completed
+    const hasPending = updatedHistory.some(tx => tx.status !== 'Completed');
+    if (hasPending && !historyRefreshInterval) {
+        historyRefreshInterval = setInterval(loadHistory, HISTORY_REFRESH_MS);
+    } else if (!hasPending && historyRefreshInterval) {
+        clearInterval(historyRefreshInterval);
+        historyRefreshInterval = null;
+    }
+
+    // Group transactions by status
+    const pending = updatedHistory.filter(tx => tx.status === 'Pending');
+    const confirmed = updatedHistory.filter(tx => tx.status === 'Confirmed');
+    const completed = updatedHistory.filter(tx => tx.status === 'Completed');
+
+    const renderTx = (tx) => {
         const sourceExplorerUrl = tx.from === 'Sepolia'
             ? `https://sepolia.etherscan.io/tx/${tx.hash}`
             : `https://explorer.stavanger.gateway.fm/tx/${tx.hash}`;
@@ -707,7 +738,6 @@ async function loadHistory() {
             ? 'https://explorer.stavanger.gateway.fm/tx/'
             : 'https://sepolia.etherscan.io/tx/';
 
-        // Build tx links HTML
         let txLinksHtml = `<a href="${sourceExplorerUrl}" target="_blank" onclick="event.stopPropagation();" style="color: #6366f1; text-decoration: none;">Source Tx</a>`;
 
         if (tx.claimTxHash) {
@@ -736,7 +766,25 @@ async function loadHistory() {
                 </div>
             </div>
         `;
-    }).join('');
+    };
+
+    const renderSection = (title, icon, txs, colorClass) => {
+        if (txs.length === 0) return '';
+        return `
+            <div class="history-section">
+                <div class="history-section-header ${colorClass}">
+                    ${icon}
+                    <span>${title} (${txs.length})</span>
+                </div>
+                ${txs.map(renderTx).join('')}
+            </div>
+        `;
+    };
+
+    historyList.innerHTML =
+        renderSection('Pending', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>', pending, 'pending') +
+        renderSection('Bridged', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>', confirmed, 'confirmed') +
+        renderSection('Claimed', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>', completed, 'completed');
 }
 
 // Status Messages

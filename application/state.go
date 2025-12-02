@@ -3,10 +3,8 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/rs/zerolog/log"
 )
 
 // GetBridgeEvent retrieves a bridge event by ID
@@ -38,39 +36,26 @@ func GetPendingBridges(ctx context.Context, db kv.RoDB, destChainID uint64) ([]B
 	var events []BridgeEvent
 
 	err := db.View(ctx, func(tx kv.Tx) error {
-		pendingKey := []byte("chain_" + string(rune(destChainID)))
-		data, err := tx.GetOne(BridgePendingBucket, pendingKey)
+		cursor, err := tx.Cursor(BridgeEventsBucket)
 		if err != nil {
 			return err
 		}
+		defer cursor.Close()
 
-		if len(data) == 0 {
-			return nil
-		}
-
-		var bridgeIDs []string
-		if err := json.Unmarshal(data, &bridgeIDs); err != nil {
-			return err
-		}
-
-		for _, bridgeID := range bridgeIDs {
-			eventData, err := tx.GetOne(BridgeEventsBucket, []byte(bridgeID))
+		for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
 			if err != nil {
-				log.Warn().Err(err).Str("bridgeId", bridgeID).Msg("Failed to get bridge event")
-				continue
-			}
-
-			if len(eventData) == 0 {
-				continue
+				return err
 			}
 
 			var event BridgeEvent
-			if err := json.Unmarshal(eventData, &event); err != nil {
-				log.Warn().Err(err).Str("bridgeId", bridgeID).Msg("Failed to unmarshal bridge event")
+			if err := json.Unmarshal(v, &event); err != nil {
 				continue
 			}
 
-			events = append(events, event)
+			// Filter by destination chain and pending status
+			if event.DestChain == destChainID && event.Status == BridgeStatusConfirmed {
+				events = append(events, event)
+			}
 		}
 
 		return nil
@@ -83,40 +68,14 @@ func GetPendingBridges(ctx context.Context, db kv.RoDB, destChainID uint64) ([]B
 	return events, nil
 }
 
-// GetBridgeStatus returns the status of a bridge event
-func GetBridgeStatus(ctx context.Context, db kv.RoDB, bridgeID string) (string, error) {
-	event, err := GetBridgeEvent(ctx, db, bridgeID)
-	if err != nil {
-		return "", err
-	}
-
-	return event.Status, nil
-}
-
 // IsBridgeClaimed checks if a bridge has been claimed
 func IsBridgeClaimed(ctx context.Context, db kv.RoDB, bridgeID string) (bool, error) {
-	err := db.View(ctx, func(tx kv.Tx) error {
-		data, err := tx.GetOne(BridgeCompletedBucket, []byte(bridgeID))
-		if err != nil {
-			return err
-		}
-
-		if len(data) > 0 {
-			return nil // Claimed
-		}
-
-		return ErrBridgeNotFound
-	})
-
-	if err == nil {
-		return true, nil
+	event, err := GetBridgeEvent(ctx, db, bridgeID)
+	if err != nil {
+		return false, err
 	}
 
-	if errors.Is(err, ErrBridgeNotFound) {
-		return false, nil
-	}
-
-	return false, err
+	return event.Status == BridgeStatusCompleted, nil
 }
 
 // GetBridgeStats returns statistics about bridge events

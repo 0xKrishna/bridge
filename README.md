@@ -7,7 +7,7 @@
 
 ## Overview
 
-Pelagos Bridge is an Agglayer-inspired cross-chain bridge that enables fast, secure token transfers between Ethereum L1 (Sepolia) and custom L2 networks (Stavanger). Built on the Pelagos SDK, it provides a simple, efficient bridging solution without the complexity of ZK proofs.
+Pelagos Bridge is a cross-chain bridge that enables fast, secure token transfers between Ethereum L1 (Sepolia) and custom L2 networks (Stavanger). Built on the Pelagos SDK, it provides a simple, efficient bridging solution with validator-based consensus.
 
 ### Key Features
 
@@ -52,13 +52,13 @@ Pelagos Bridge is an Agglayer-inspired cross-chain bridge that enables fast, sec
 | Network | Chain ID | Bridge Contract | Explorer |
 |---------|----------|----------------|----------|
 | Sepolia (L1) | 11155111 | `0x844E740Ea7F404c6208fd85Ee6114a14F8037df7` | [Etherscan](https://sepolia.etherscan.io/address/0x844E740Ea7F404c6208fd85Ee6114a14F8037df7) |
-| Stavanger (L2) | 26400 | `0x3C1c8351a09DB0300786148B56EcB7be2FaA322e` | [Blockscout](https://stavanger-blockscout.eu-north-2.gateway.fm/address/0x3C1c8351a09DB0300786148B56EcB7be2FaA322e) |
+| Stavanger (L2) | 50591822 | `0x3C1c8351a09DB0300786148B56EcB7be2FaA322e` | [Blockscout](https://explorer.stavanger.gateway.fm/address/0x3C1c8351a09DB0300786148B56EcB7be2FaA322e) |
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.21+
 - Docker & Docker Compose
 - Node.js 18+ (for frontend)
 
@@ -106,7 +106,7 @@ Pelagos Bridge is an Agglayer-inspired cross-chain bridge that enables fast, sec
 const tx = await bridgeContract.bridgeAsset(
     token,         // Token address (or address(0) for native)
     amount,        // Amount in wei
-    26400,         // Destination chain ID (Stavanger)
+    50591822,      // Destination chain ID (Stavanger)
     recipient,     // Recipient address
     permitData     // EIP-2612 permit data (or "0x" for pre-approved)
 );
@@ -118,24 +118,22 @@ const tx = await bridgeContract.bridgeAsset(
 bridge/
 ├── application/          # Core bridge logic
 │   ├── state_transition.go   # Event processing & ExternalTransaction generation
-│   ├── transaction.go         # Bridge transaction types
-│   └── api/                   # JSON-RPC API endpoints
+│   ├── bridge_event.go       # Bridge event data types
+│   ├── state.go              # Database query functions
+│   └── api/                  # JSON-RPC API endpoints
 ├── cmd/                  # Application entry point
 │   └── main.go
 ├── config/              # Configuration files
-│   ├── bridge_contracts.json
 │   ├── chain_data.json
 │   ├── consensus_chains.json
 │   └── ext_networks.json
 ├── contracts/           # Solidity contracts
 │   └── contracts/
 │       └── Bridge.sol
-├── frontend/            # Web UI
-│   ├── index.html
-│   ├── app.js
-│   └── styles.css
-├── CLAUDE.md           # Detailed project documentation
-└── PERMIT_USAGE.md     # EIP-2612 permit integration guide
+└── frontend/            # Web UI
+    ├── index.html
+    ├── app.js
+    └── styles.css
 ```
 
 ## Token Mapping
@@ -199,27 +197,22 @@ Configures where pelacli sends ExternalTransactions.
 
 ## API Endpoints
 
-The bridge exposes standard JSON-RPC endpoints plus custom bridge queries:
+The bridge exposes JSON-RPC endpoints for querying bridge state:
 
-### Standard Methods
-- `eth_blockNumber` - Get current block number
-- `eth_getTransactionByHash` - Get transaction details
-- `eth_getBalance` - Get account balance
-
-### Custom Bridge Methods
-- `getBalance(address, token)` - Get token balance
-- `getBridgeTransaction(bridgeId)` - Get bridge transaction status
-- `getBridgeStatus(bridgeId)` - Get bridge status
-- `listPendingBridges(chainId)` - List pending bridges
+### Bridge Methods
+- `getBridgeEvent(bridgeId)` - Get full bridge event details
+- `getBridgeStatus(bridgeId)` - Get bridge status and tx hashes
+- `listPendingBridges(destChainId)` - List pending bridges for a chain
+- `getBridgeStats()` - Get bridge statistics
 
 Example:
 ```bash
-curl -X POST http://localhost:8080 \
+curl -X POST http://localhost:8080/rpc \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
-    "method": "getBalance",
-    "params": ["0x...", "USDT"],
+    "method": "getBridgeStatus",
+    "params": [{"bridgeId": "0x123..."}],
     "id": 1
   }'
 ```
@@ -324,21 +317,7 @@ Key log messages:
 
 ## Documentation
 
-- **[CLAUDE.md](./CLAUDE.md)** - Comprehensive project documentation and architecture guide
-- **[PERMIT_USAGE.md](./PERMIT_USAGE.md)** - EIP-2612 permit integration guide
-- **[Frontend README](./frontend/README.md)** - Frontend documentation
 - **[Pelagos SDK](https://github.com/0xAtelerix/sdk)** - Official Pelagos SDK documentation
-
-## Comparison with Polygon AggLayer
-
-| Feature | Polygon AggLayer | Pelagos Bridge |
-|---------|------------------|----------------|
-| **Architecture** | Hierarchical (L1 → AggLayer → L2) | Flat (all chains equal) |
-| **Security** | ZK proofs + validator | Validator consensus |
-| **Finality** | ZK proof generation (~10-30 min) | Near-instant (~2-5 min) |
-| **Token mapping** | On-chain config | Appchain-based |
-| **Complexity** | High (zkEVM, proofs) | Low (event-driven) |
-| **Use case** | Production mainnet rollups | Development, custom networks |
 
 ## Future Enhancements
 
@@ -379,7 +358,6 @@ MIT License - see LICENSE file for details
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/your-repo/issues)
-- **Documentation:** [CLAUDE.md](./CLAUDE.md)
 - **Pelagos SDK:** [GitHub](https://github.com/0xAtelerix/sdk)
 
 ---

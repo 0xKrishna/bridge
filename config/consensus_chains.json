@@ -3,14 +3,14 @@
     "ChainID": 11155111,
     "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/sepolia",
     "APIKey": "wss://official:browNrun_blackScream@ethws-sepolia.flerken.space",
-    "StartBlock": 9750980,
+    "StartBlock": 9752597,
     "BlockOffset": 1
   },
   {
     "ChainID": 50591822,
     "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/stavanger",
     "APIKey": "wss://stavanger-rpc.eu-north-2.gateway.fm/ws",
-    "StartBlock": 5520383,
+    "StartBlock": 5523561,
     "BlockOffset": 1
   }
 ]

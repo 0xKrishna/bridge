@@ -156,7 +156,7 @@ contract Bridge is Ownable, ReentrancyGuard, Pausable {
      *
      *      permitData format (if using permit):
      *      - Encode: abi.encode(owner, spender, value, deadline, v, r, s)
-     *      - This executes permit() before transferFrom, enabling one-transaction UX like AggLayer
+     *      - This executes permit() before transferFrom, enabling one-transaction bridging UX
      */
     function bridgeAsset(
         address token,

@@ -178,7 +178,7 @@ type GetBridgeEventResponse struct {
 	SourceChain  uint64 `json:"sourceChain"`
 	DestChain    uint64 `json:"destChain"`
 	Token        string `json:"token"`
-	Amount       uint64 `json:"amount"`
+	Amount       string `json:"amount"`
 	Sender       string `json:"sender"`
 	Recipient    string `json:"recipient"`
 	Status       string `json:"status"`
@@ -207,7 +207,7 @@ type BridgeSummary struct {
 	SourceChain uint64 `json:"sourceChain"`
 	DestChain   uint64 `json:"destChain"`
 	Token       string `json:"token"`
-	Amount      uint64 `json:"amount"`
+	Amount      string `json:"amount"`
 	Recipient   string `json:"recipient"`
 	Status      string `json:"status"`
 }
