@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "deployments": {
+    "11155111": {
+      "name": "sepolia",
+      "bridge": "0x844E740Ea7F404c6208fd85Ee6114a14F8037df7",
+      "bridgeType": "generic",
+      "supportedTokens": "any ERC20 or native (address(0))",
+      "pelagosContract": "0x049FBea1295B569378Fe0D5AB965131743f332b9",
+      "appChainId": 42,
+      "deployedAt": 9689299,
+      "deployer": "0x9dAb0543da618337DAB2c231EA4505F6a2097217"
+    },
+    "50591822": {
+      "name": "stavanger",
+      "bridge": "0x3C1c8351a09DB0300786148B56EcB7be2FaA322e",
+      "bridgeType": "generic",
+      "supportedTokens": "any ERC20 or native (address(0))",
+      "pelagosContract": "0x416b560B03e6d9EF473bf57ccbb2A569AF5d0736",
+      "appChainId": 42,
+      "deployedAt": 5623656,
+      "deployer": "0x9dAb0543da618337DAB2c231EA4505F6a2097217"
+    }
+  }
+}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pelagos Bridge | Cross-Chain Bridge</title>
+    <link rel="icon" href="Pelagos_primary_logo.svg">
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="Pelagos_primary_logo.svg" alt="Pelagos" class="logo-svg">
+                <span class="brand-name">Bridge</span>
+                <span class="badge-beta">BETA</span>
+            </div>
+            <div class="nav-links">
+                <button class="nav-link active" data-tab="bridge">Bridge</button>
+                <button class="nav-link" data-tab="history">History</button>
+            </div>
+            <button class="btn-connect" id="walletBtn" onclick="toggleWallet()">
+                Connect Wallet
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Bridge Tab -->
+        <div id="tab-bridge" class="tab-content active">
+            <div class="bridge-card">
+                <div class="card-body">
+                    <!-- From Section -->
+                    <div class="transfer-section">
+                        <div class="section-header">
+                            <span>From</span>
+                            <span class="balance" id="fromBalance">Balance: --</span>
+                        </div>
+                        <div class="input-group">
+                            <div class="network-selector" id="fromNetwork" onclick="showNetworkModal('from')">
+                                <img src="" alt="" class="network-icon" id="fromIcon">
+                                <span class="network-name" id="fromName">Select Network</span>
+                                <svg class="chevron" width="20" height="20" viewBox="0 0 20 20">
+                                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" fill="none"/>
+                                </svg>
+                            </div>
+                            <div class="token-selector" id="fromToken">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
+                                <span>POL</span>
+                            </div>
+                        </div>
+                        <div class="amount-input-wrapper">
+                            <input type="number" id="amountInput" class="amount-input" placeholder="0.0" step="0.01" min="0">
+                            <button class="btn-max" onclick="setMaxAmount()">MAX</button>
+                        </div>
+                    </div>
+
+                    <!-- Swap Direction Button -->
+                    <div class="swap-direction">
+                        <button class="btn-swap" onclick="swapDirection()" title="Swap direction">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2"/>
+                                <path d="M17 14L12 9L7 14" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- To Section -->
+                    <div class="transfer-section">
+                        <div class="section-header">
+                            <span>To</span>
+                            <span class="balance" id="toBalance">Balance: --</span>
+                            <span class="liquidity" id="bridgeLiquidity" style="color: #10b981; font-size: 0.75rem;">Liquidity: --</span>
+                        </div>
+                        <div class="input-group">
+                            <div class="network-selector" id="toNetwork" onclick="showNetworkModal('to')">
+                                <img src="" alt="" class="network-icon" id="toIcon">
+                                <span class="network-name" id="toName">Select Network</span>
+                                <svg class="chevron" width="20" height="20" viewBox="0 0 20 20">
+                                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" fill="none"/>
+                                </svg>
+                            </div>
+                            <div class="token-selector" id="toToken">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
+                                <span>POL</span>
+                            </div>
+                        </div>
+                        <div class="recipient-input-wrapper">
+                            <input type="text" id="recipientInput" class="recipient-input" placeholder="Recipient address (optional)">
+                            <button class="btn-paste" onclick="useConnectedAddress()">Use My Address</button>
+                        </div>
+                    </div>
+
+                    <!-- Bridge Summary -->
+                    <div class="bridge-summary" id="bridgeSummary" style="display: none;">
+                        <div class="summary-row">
+                            <span>You will receive</span>
+                            <span id="receiveAmount">-- POL</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Estimated time</span>
+                            <span>~30 secs</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Bridge fee</span>
+                            <span>No fees</span>
+                        </div>
+                    </div>
+
+                    <!-- Bridge Button -->
+                    <button class="btn-bridge" id="bridgeBtn" onclick="initiateBridge()" disabled>
+                        Connect Wallet to Bridge
+                    </button>
+
+                    <!-- Status Messages -->
+                    <div id="statusMessage" class="status-message" style="display: none;"></div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="tab-history" class="tab-content">
+            <div class="history-card">
+                <h2>Transaction History</h2>
+                <div class="history-list" id="historyList">
+                    <div class="empty-state">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="30" stroke="#e5e7eb" stroke-width="4"/>
+                            <path d="M32 16V32L42 42" stroke="#9ca3af" stroke-width="4" stroke-linecap="round"/>
+                        </svg>
+                        <p>No transactions yet</p>
+                        <span>Your bridge transactions will appear here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Modal -->
+    <div id="networkModal" class="modal">
+        <div class="modal-backdrop" onclick="closeNetworkModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select Network</h3>
+                <button class="modal-close" onclick="closeNetworkModal()">×</button>
+            </div>
+            <div class="network-list">
+                <button class="network-option" onclick="selectNetwork('sepolia')">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23627eea'/%3E%3Cpath d='M16 4L15.5 5.5L15.5 20.5L16 21L24 16.5z' fill='white'/%3E%3Cpath d='M16 4L8 16.5L16 21z' fill='%23c1cde9'/%3E%3C/svg%3E" alt="Sepolia">
+                    <div>
+                        <div class="network-option-name">Sepolia</div>
+                        <div class="network-option-desc">Ethereum Testnet</div>
+                    </div>
+                    <svg class="check-icon" width="20" height="20" viewBox="0 0 20 20">
+                        <path d="M4 10L8 14L16 6" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </button>
+                <button class="network-option" onclick="selectNetwork('stavanger')">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Cpath d='M10 8L16 12L22 8L16 4z' fill='white'/%3E%3Cpath d='M10 16L16 20L22 16L16 12z' fill='%23b794f6'/%3E%3Cpath d='M10 24L16 28L22 24L16 20z' fill='white'/%3E%3C/svg%3E" alt="Stavanger">
+                    <div>
+                        <div class="network-option-name">Stavanger</div>
+                        <div class="network-option-desc">L2 Rollup</div>
+                    </div>
+                    <svg class="check-icon" width="20" height="20" viewBox="0 0 20 20">
+                        <path d="M4 10L8 14L16 6" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

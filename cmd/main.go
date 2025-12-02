@@ -9,7 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/0xAtelerix/example/application/api"
 	"github.com/0xAtelerix/sdk/gosdk"
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/0xAtelerix/sdk/gosdk/rpc"
 	"github.com/0xAtelerix/sdk/gosdk/txpool"
 	"github.com/fxamacker/cbor/v2"
@@ -20,7 +22,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/0xAtelerix/example/application"
-	"github.com/0xAtelerix/example/application/api"
 )
 
 const ChainID = 42
@@ -32,7 +33,7 @@ type RuntimeArgs struct {
 	TxStreamDir      string
 	LocalDBPath      string
 	RPCPort          string
-	MutlichainConfig gosdk.MultichainConfig
+	MultichainConfig gosdk.MultichainConfig
 	LogLevel         zerolog.Level
 }
 
@@ -90,7 +91,7 @@ func RunCLI(ctx context.Context) {
 		LocalDBPath:      *localDBPath,
 		RPCPort:          *rpcPort,
 		LogLevel:         zerolog.Level(*logLevel),
-		MutlichainConfig: mcDbs,
+		MultichainConfig: mcDbs,
 	}
 
 	Run(ctx, args, nil)
@@ -105,7 +106,7 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	config := gosdk.MakeAppchainConfig(ChainID, args.MutlichainConfig)
+	config := gosdk.MakeAppchainConfig(ChainID, args.MultichainConfig)
 
 	config.EmitterPort = args.EmitterPort
 	config.AppchainDBPath = args.AppchainDBPath
@@ -113,12 +114,12 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 	config.TxStreamDir = args.TxStreamDir
 	config.Logger = &log.Logger
 
-	chainDBs, err := gosdk.NewMultichainStateAccessDB(args.MutlichainConfig)
+	chainDBs, err := gosdk.NewMultichainStateAccessSQLDB(ctx, args.MultichainConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create multichain db")
 	}
 
-	msa := gosdk.NewMultichainStateAccess(chainDBs)
+	msa := gosdk.NewMultichainStateAccessSQL(chainDBs)
 
 	// инициализируем базу на нашей стороне
 	appchainDB, err := mdbx.NewMDBX(mdbxlog.New()).
@@ -140,7 +141,7 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 		log.Fatal().Err(err).Msg("Failed to create subscriber")
 	}
 
-	stateTransition := gosdk.NewBatchProcesser[application.Transaction[application.Receipt]](
+	stateTransition := gosdk.NewBatchProcesser[application.Transaction](
 		application.NewStateTransition(msa),
 		msa,
 		subs,
@@ -176,7 +177,7 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 		log.Fatal().Err(err).Msg("Failed to appchain mdbx database")
 	}
 
-	txPool := txpool.NewTxPool[application.Transaction[application.Receipt]](
+	txPool := txpool.NewTxPool[application.Transaction](
 		localDB,
 	)
 
@@ -203,17 +204,6 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 		txBatchDB,
 	)
 
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to start appchain")
-	}
-
-	// Initialize genesis accounts and trading pairs after all databases are ready
-	log.Info().Msg("Initializing genesis state...")
-
-	if err := application.InitializeGenesis(ctx, appchainDB); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize genesis state")
-	}
-
 	// Run appchain in goroutine
 	runErr := make(chan error, 1)
 
@@ -228,17 +218,10 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 
 	rpcServer := rpc.NewStandardRPCServer(nil)
 
-	// Optional: add middleware for logging
+	// Add logging middleware
 	rpcServer.AddMiddleware(api.NewExampleMiddleware(log.Logger))
 
-	// Add standard RPC methods - Refer RPC readme in sdk for details
-	rpc.AddStandardMethods[
-		application.Transaction[application.Receipt],
-		application.Receipt,
-		application.Block,
-	](rpcServer, appchainDB, txPool, ChainID)
-
-	// Add custom RPC methods - Optional
+	// Add custom bridge RPC methods
 	api.NewCustomRPC(rpcServer, appchainDB).AddRPCMethods()
 
 	if err := rpcServer.StartHTTPServer(ctx, args.RPCPort); err != nil {

@@ -1,14 +1,16 @@
 [
   {
-    "ChainID": 80002,
-    "DBPath": "/multichain/amoy",
-    "APIKey": "{YOUR AMOY WSS URL}",
-    "StartBlock": 27701526
+    "ChainID": 11155111,
+    "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/sepolia",
+    "APIKey": "wss://official:browNrun_blackScream@ethws-sepolia.flerken.space",
+    "StartBlock": 9750980,
+    "BlockOffset": 1
   },
   {
-    "ChainID": 123231,
-    "DBPath": "/multichain/solana-devnet",
-    "APIKey": "https://api.devnet.solana.com",
-    "StartBlock": 414579298
+    "ChainID": 50591822,
+    "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/stavanger",
+    "APIKey": "wss://stavanger-rpc.eu-north-2.gateway.fm/ws",
+    "StartBlock": 5520383,
+    "BlockOffset": 1
   }
 ]

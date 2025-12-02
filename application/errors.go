@@ -7,8 +7,15 @@ func (e Error) Error() string {
 }
 
 const (
-	ErrNotEnoughBalance     = Error("sender's balance not enough")
 	ErrDatabaseNil          = Error("database is nil")
 	ErrMissingParameters    = Error("missing parameters")
 	ErrDatabaseNotAvailable = Error("database not available")
+
+	// Bridge errors
+	ErrBridgeNotFound      = Error("bridge transaction not found")
+	ErrInvalidDestChain    = Error("invalid destination chain")
+	ErrBridgeAlreadyExists = Error("bridge transaction already exists")
+	ErrInvalidBridgeID     = Error("invalid bridge ID")
+	ErrBridgeNotPending    = Error("bridge transaction is not pending")
+	ErrInvalidChainID      = Error("invalid chain ID")
 )

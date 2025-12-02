@@ -3,13 +3,12 @@ module github.com/0xAtelerix/example
 go 1.25.0
 
 require (
-	github.com/0xAtelerix/sdk v0.1.6
-	github.com/blocto/solana-go-sdk v1.30.0
+	github.com/0xAtelerix/sdk v0.1.7-0.20251201082031-581f449b6a1c
 	github.com/ethereum/go-ethereum v1.16.3
 	github.com/fxamacker/cbor/v2 v2.9.0
-	github.com/holiman/uint256 v1.3.2
 	github.com/ledgerwatch/erigon-lib v1.0.0
 	github.com/ledgerwatch/log/v3 v3.9.0
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
 )
@@ -20,6 +19,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.0 // indirect
+	github.com/blocto/solana-go-sdk v1.30.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -34,6 +34,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -66,3 +67,5 @@ require (
 )
 
 replace google.golang.org/genproto v0.0.0-20200825200019-8632dd797987 => google.golang.org/genproto v0.0.0-20250707201910-8d1bb00bc6a7
+
+replace github.com/0xAtelerix/sdk => /Users/krishna/0xAtelerix/sdk

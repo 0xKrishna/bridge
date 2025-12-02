@@ -1,15 +1,15 @@
 [
   {
     "chainId": 11155111,
-    "rpcUrl": "<YOUR SEPOLIA RPC URL>",
-    "contractAddress": "<PELAGOS CONTRACT ADDRESS ON SEPOLIA>",
-    "privateKey": "<PRIVATE KEY WITH FUNDS AND ACCESS TO PELAGOS CONTRACT>"
+    "rpcUrl": "https://eth-sepolia.g.alchemy.com/v2/bEzb7Rb14hzR79tLw-gfy",
+    "contractAddress": "0x049FBea1295B569378Fe0D5AB965131743f332b9",
+    "privateKey": "e98608987ecc7b3315bee23e86a5c1cfb6288159d0a3c2009335f4494bd4579a"
   },
   {
-    "chainId": 123231,
-    "rpcUrl": "https://api.devnet.solana.com",
-    "contractAddress": "<YOUR PELAGOS PROGRAM ADDRESS>",
-    "privateKey": "<PRIVATE KEY WITH FUNDS AND SIGNER ACCESS FOR PELAGOS PROGRAM>"
+    "chainId": 50591822,
+    "rpcUrl": "https://stavanger-rpc.eu-north-2.gateway.fm",
+    "contractAddress": "0x416b560B03e6d9EF473bf57ccbb2A569AF5d0736",
+    "privateKey": "e98608987ecc7b3315bee23e86a5c1cfb6288159d0a3c2009335f4494bd4579a"
   }
 ]
 

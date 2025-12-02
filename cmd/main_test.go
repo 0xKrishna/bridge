@@ -97,11 +97,17 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("JSON-RPC service never became ready: %v", err)
 	}
 
-	// build & send a transaction
-	tx := application.Transaction[application.Receipt]{
-		Sender: "Vasya",
-		Value:  42,
-		TxHash: "deadbeef",
+	// build & send a bridge transaction
+	tx := application.BridgeTransaction{
+		BridgeID:    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+		SourceChain: 11155111, // Sepolia
+		DestChain:   50591822, // Stavanger
+		Token:       "0x6a7c3f4b0651d6da389ad1d11d962ea458cdca70",
+		Amount:      1000000,
+		Sender:      "0xSenderAddress",
+		Recipient:   "0xRecipientAddress",
+		Status:      "Pending",
+		TxHash:      "deadbeef",
 	}
 
 	var buf bytes.Buffer
