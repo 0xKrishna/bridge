@@ -145,7 +145,7 @@ The bridge automatically maps token addresses between chains:
 | Sepolia (L1) | POL ERC20 (`0x6a7c...`) | Stavanger (L2) | Native POL (`address(0)`) |
 | Stavanger (L2) | Native POL (`address(0)`) | Sepolia (L1) | POL ERC20 (`0x6a7c...`) |
 
-Token mapping logic is configurable in `application/state_transition.go:mapTokenAddress()`.
+Token mapping logic is configurable in `application/state_transition.go` via the `tokenMappings` map.
 
 ## Configuration
 
@@ -185,15 +185,21 @@ Configures which chains pelacli monitors for bridge events.
 
 ### External Networks (`config/ext_networks.json`)
 
-Configures where pelacli sends ExternalTransactions.
+Configures where pelacli sends ExternalTransactions to the Pelagos contract.
 
 ```json
 [
   {
     "chainId": 11155111,
-    "rpcUrl": "https://sepolia.infura.io/v3/YOUR_KEY",
-    "contractAddress": "0x844E740Ea7F404c6208fd85Ee6114a14F8037df7",
-    "privateKey": "0x..."
+    "rpcUrl": "<sepolia_rpc_url>",
+    "contractAddress": "0x049FBea1295B569378Fe0D5AB965131743f332b9",
+    "privateKey": "<private_key>"
+  },
+  {
+    "chainId": 50591822,
+    "rpcUrl": "<stavanger_rpc_url>",
+    "contractAddress": "0x416b560B03e6d9EF473bf57ccbb2A569AF5d0736",
+    "privateKey": "<private_key>"
   }
 ]
 ```
@@ -248,7 +254,7 @@ golangci-lint run
 
 ### Adding New Tokens
 
-1. Add token mapping logic in `application/state_transition.go:mapTokenAddress()`
+1. Add token mapping in `application/state_transition.go` `tokenMappings` map
 2. Update frontend token selector (if using frontend)
 3. Restart the bridge appchain
 
@@ -280,9 +286,8 @@ docker compose logs -f appchain
 ```
 
 Key log messages:
-- `Received BridgeInitiated event from external chain` - Event detected
-- `Mapping Sepolia POL ERC20 to Stavanger native POL` - Token mapping
-- `Successfully created external transaction` - Ready to mint
+- `Bridge event processed` - Event detected and processed
+- `Processed EVM External block` - Block processing complete
 
 ### Pelacli Logs
 
@@ -306,9 +311,9 @@ Key log messages:
 ### Event not detected
 
 1. Verify event signature in `state_transition.go` matches contract
-2. Check bridge contract address in `config/consensus_chains.json`
+2. Check bridge contract address in `state_transition.go` matches deployed contract
 3. Verify pelacli is monitoring the correct chain
-4. Check start block is before the bridge transaction
+4. Check start block in `config/consensus_chains.json` is before the bridge transaction
 
 ### Frontend connection issues
 
@@ -317,51 +322,7 @@ Key log messages:
 3. Verify RPC URLs in frontend `app.js`
 4. Check browser console for errors
 
-## Documentation
-
-- **[Pelagos SDK](https://github.com/0xAtelerix/sdk)** - Official Pelagos SDK documentation
-
-## Future Enhancements
-
-### Phase 2: TSS Integration
-- Multi-party validator coordination
-- Threshold signatures (e.g., 2/3 validators)
-- No single point of failure
-
-### Phase 3: Periodic Roots
-- Merkle tree of bridge transactions
-- Periodic root submissions for backup security
-- Audit trail
-
-### Phase 4: BridgeAndCall()
-- Cross-chain execution with arbitrary calldata
-- Bridge + swap/stake/mint in one transaction
-
-### Phase 5: Advanced Features
-- Native liquidity pools (USDC, USDT)
-- Lock/mint for custom tokens
-- Slashing and incentive mechanisms
-- Circuit breakers and anomaly detection
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## License
 
 MIT License - see LICENSE file for details
-
-## Support
-
-- **Issues:** [GitHub Issues](https://github.com/your-repo/issues)
-- **Pelagos SDK:** [GitHub](https://github.com/0xAtelerix/sdk)
-
----
-
 **Built with [Pelagos SDK](https://github.com/0xAtelerix/sdk) 🌊**
