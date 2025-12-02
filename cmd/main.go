@@ -61,17 +61,20 @@ func RunCLI(ctx context.Context) {
 	multichainConfigJSON := fs.String("multichain-config", "", "Multichain config JSON path")
 	logLevel := fs.Int("log-level", int(zerolog.InfoLevel), "Logging level")
 
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		log.Fatal().Err(err).Msg("Failed to parse flags")
+	}
+
+	// Validate log level after parsing
 	if *logLevel > int(zerolog.Disabled) {
 		*logLevel = int(zerolog.DebugLevel)
 	} else if *logLevel < int(zerolog.TraceLevel) {
 		*logLevel = int(zerolog.TraceLevel)
 	}
 
-	_ = fs.Parse(os.Args[1:])
-
 	var mcDbs gosdk.MultichainConfig
 
-	if multichainConfigJSON != nil && *multichainConfigJSON != "" {
+	if *multichainConfigJSON != "" {
 		f, err := os.ReadFile(*multichainConfigJSON)
 		if err != nil {
 			log.Panic().Err(err).Msg("Error reading multichain config")
@@ -190,6 +193,8 @@ func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
 	if err != nil {
 		log.Fatal().Str("path", config.TxStreamDir).Err(err).Msg("Failed to tx batch mdbx database")
 	}
+
+	defer txBatchDB.Close()
 
 	log.Info().Msg("Starting appchain...")
 

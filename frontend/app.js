@@ -787,6 +787,16 @@ async function loadHistory() {
         renderSection('Claimed', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>', completed, 'completed');
 }
 
+// Clear History
+function clearHistory() {
+    localStorage.removeItem('bridgeHistory');
+    if (historyRefreshInterval) {
+        clearInterval(historyRefreshInterval);
+        historyRefreshInterval = null;
+    }
+    loadHistory();
+}
+
 // Status Messages
 function showStatus(message, type) {
     const statusDiv = document.getElementById('statusMessage');

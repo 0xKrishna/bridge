@@ -29,13 +29,3 @@ func GetBridgeEvent(ctx context.Context, db kv.RoDB, bridgeID string) (*BridgeEv
 
 	return &event, nil
 }
-
-// IsBridgeClaimed checks if a bridge has been claimed
-func IsBridgeClaimed(ctx context.Context, db kv.RoDB, bridgeID string) (bool, error) {
-	event, err := GetBridgeEvent(ctx, db, bridgeID)
-	if err != nil {
-		return false, err
-	}
-
-	return event.Status == BridgeStatusCompleted, nil
-}

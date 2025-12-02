@@ -125,7 +125,10 @@
         <!-- History Tab -->
         <div id="tab-history" class="tab-content">
             <div class="history-card">
-                <h2>Transaction History</h2>
+                <div class="history-header">
+                    <h2>Transaction History</h2>
+                    <button class="btn-clear-history" onclick="clearHistory()">Clear History</button>
+                </div>
                 <div class="history-list" id="historyList">
                     <div class="empty-state">
                         <svg width="64" height="64" viewBox="0 0 64 64" fill="none">

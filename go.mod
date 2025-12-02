@@ -3,7 +3,7 @@ module github.com/0xAtelerix/example
 go 1.25.0
 
 require (
-	github.com/0xAtelerix/sdk v0.1.7-0.20251201082031-581f449b6a1c
+	github.com/0xAtelerix/sdk v0.1.7-0.20251201172204-4fb4524a83fe
 	github.com/ethereum/go-ethereum v1.16.3
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/ledgerwatch/erigon-lib v1.0.0
@@ -67,5 +67,3 @@ require (
 )
 
 replace google.golang.org/genproto v0.0.0-20200825200019-8632dd797987 => google.golang.org/genproto v0.0.0-20250707201910-8d1bb00bc6a7
-
-replace github.com/0xAtelerix/sdk => /Users/krishna/0xAtelerix/sdk

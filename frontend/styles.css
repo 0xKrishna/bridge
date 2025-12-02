@@ -427,6 +427,33 @@ body {
 }
 
 /* History */
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.history-header h2 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.btn-clear-history {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-clear-history:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
 .history-list {
     margin-top: 1.5rem;
 }

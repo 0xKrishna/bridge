@@ -22,34 +22,24 @@ const (
 	BridgeContractAddressSepolia   = "0x844E740Ea7F404c6208fd85Ee6114a14F8037df7"
 	BridgeContractAddressStavanger = "0x3C1c8351a09DB0300786148B56EcB7be2FaA322e"
 
-	// Event signatures
-	BridgeInitiatedSignature = "0xa43a2e0bb4454dc2f20f4a34be7549f0e1b00e4f5e88805c729900e40471a0cb"
-	AssetClaimedSignature    = "0x260120404c049bd806f3d5d3444295a9eab7f94112fdec90a6072ad39acae708"
+	// Token addresses
+	SepoliaPOLAddress  = "0x6a7c3f4b0651d6da389ad1d11d962ea458cdca70"
+	NativeTokenAddress = "0x0000000000000000000000000000000000000000"
+
+	// Event signature hashes
+	BridgeInitiatedSigHash = "0xa43a2e0bb4454dc2f20f4a34be7549f0e1b00e4f5e88805c729900e40471a0cb"
+	AssetClaimedSigHash    = "0x260120404c049bd806f3d5d3444295a9eab7f94112fdec90a6072ad39acae708"
 )
 
-// Cached parsed ABI for BridgeInitiated event
-//
-//nolint:gochecknoglobals // Intentionally cached at package level for performance
-var bridgeInitiatedABI abi.ABI
-
-func init() {
-	const eventABI = `[{"anonymous":false,"inputs":[` +
-		`{"indexed":true,"internalType":"bytes32","name":"bridgeId","type":"bytes32"},` +
-		`{"indexed":true,"internalType":"uint256","name":"sourceChainId","type":"uint256"},` +
-		`{"indexed":true,"internalType":"uint256","name":"destChainId","type":"uint256"},` +
-		`{"indexed":false,"internalType":"address","name":"token","type":"address"},` +
-		`{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},` +
-		`{"indexed":false,"internalType":"address","name":"sender","type":"address"},` +
-		`{"indexed":false,"internalType":"address","name":"recipient","type":"address"}],` +
-		`"name":"BridgeInitiated","type":"event"}]`
-
-	var err error
-
-	bridgeInitiatedABI, err = abi.JSON(strings.NewReader(eventABI))
-	if err != nil {
-		panic("failed to parse BridgeInitiated ABI: " + err.Error())
-	}
-}
+const bridgeInitiatedEventABI = `[{"anonymous":false,"inputs":[` +
+	`{"indexed":true,"internalType":"bytes32","name":"bridgeId","type":"bytes32"},` +
+	`{"indexed":true,"internalType":"uint256","name":"sourceChainId","type":"uint256"},` +
+	`{"indexed":true,"internalType":"uint256","name":"destChainId","type":"uint256"},` +
+	`{"indexed":false,"internalType":"address","name":"token","type":"address"},` +
+	`{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},` +
+	`{"indexed":false,"internalType":"address","name":"sender","type":"address"},` +
+	`{"indexed":false,"internalType":"address","name":"recipient","type":"address"}],` +
+	`"name":"BridgeInitiated","type":"event"}]`
 
 var (
 	_ gosdk.StateTransitionSimplified                      = &StateTransition{}
@@ -57,12 +47,41 @@ var (
 )
 
 type StateTransition struct {
-	msa *gosdk.MultichainStateAccessSQL
+	msa             *gosdk.MultichainStateAccessSQL
+	bridgeABI       abi.ABI
+	bridgeContracts map[uint64]common.Address                    // chainID -> bridge contract
+	tokenMappings   map[uint64]map[common.Address]common.Address // sourceChain -> token -> destToken
 }
 
 func NewStateTransition(msa *gosdk.MultichainStateAccessSQL) *StateTransition {
+	bridgeABI, err := abi.JSON(strings.NewReader(bridgeInitiatedEventABI))
+	if err != nil {
+		panic("failed to parse BridgeInitiated ABI: " + err.Error())
+	}
+
+	sepoliaChainID := uint64(gosdk.EthereumSepoliaChainID)
+	stavangerChainID := uint64(gosdk.StavangerTestnetChainID)
+
+	sepoliaPOL := common.HexToAddress(SepoliaPOLAddress)
+	nativeToken := common.HexToAddress(NativeTokenAddress)
+
+	bridgeContracts := map[uint64]common.Address{
+		sepoliaChainID:   common.HexToAddress(BridgeContractAddressSepolia),
+		stavangerChainID: common.HexToAddress(BridgeContractAddressStavanger),
+	}
+
+	tokenMappings := map[uint64]map[common.Address]common.Address{
+		// Sepolia -> Stavanger: POL ERC20 -> native
+		sepoliaChainID: {sepoliaPOL: nativeToken},
+		// Stavanger -> Sepolia: native -> POL ERC20
+		stavangerChainID: {nativeToken: sepoliaPOL},
+	}
+
 	return &StateTransition{
-		msa: msa,
+		msa:             msa,
+		bridgeABI:       bridgeABI,
+		bridgeContracts: bridgeContracts,
+		tokenMappings:   tokenMappings,
 	}
 }
 
@@ -71,8 +90,8 @@ func (st *StateTransition) ProcessBlock(
 	b apptypes.ExternalBlock,
 	tx kv.RwTx,
 ) ([]apptypes.ExternalTransaction, error) {
-	if !gosdk.IsEvmChain(apptypes.ChainType(b.ChainID)) {
-		log.Warn().Uint64("chainID", b.ChainID).Msg("Unsupported chain type, skipping...")
+	if _, ok := st.bridgeContracts[b.ChainID]; !ok {
+		log.Warn().Uint64("chainID", b.ChainID).Msg("Unsupported chain, skipping...")
 
 		return nil, nil
 	}
@@ -85,11 +104,6 @@ func (st *StateTransition) processEVMBlock(
 	dbtx kv.RwTx,
 ) ([]apptypes.ExternalTransaction, error) {
 	var externalTxs []apptypes.ExternalTransaction
-
-	block, err := st.msa.EVMBlock(context.Background(), b)
-	if err != nil {
-		return nil, err
-	}
 
 	receipts, err := st.msa.EVMReceipts(context.Background(), b)
 	if err != nil {
@@ -106,15 +120,14 @@ func (st *StateTransition) processEVMBlock(
 	log.Info().
 		Uint64("chainID", b.ChainID).
 		Uint64("blockNumber", b.BlockNumber).
-		Int("transactions", len(block.Transactions)).
 		Int("receipts", len(receipts)).
-		Msg("EVM External block")
+		Msg("Processed EVM External block")
 
 	return externalTxs, nil
 }
 
 // processReceipt handles Bridge events from the external chain
-func (*StateTransition) processReceipt(
+func (st *StateTransition) processReceipt(
 	dbtx kv.RwTx,
 	r evmtypes.Receipt,
 	chainID uint64,
@@ -122,29 +135,14 @@ func (*StateTransition) processReceipt(
 	var externalTxs []apptypes.ExternalTransaction
 
 	for _, vlog := range r.Logs {
-		// Check if this log is from our Bridge contracts
-		bridgeAddresses := []string{
-			BridgeContractAddressSepolia,
-			BridgeContractAddressStavanger,
-		}
-
-		isBridgeContract := false
-
-		for _, addr := range bridgeAddresses {
-			if vlog.Address == common.HexToAddress(addr) {
-				isBridgeContract = true
-
-				break
-			}
-		}
-
-		if !isBridgeContract || len(vlog.Topics) == 0 {
+		// Check if log is from the expected bridge contract for this chain
+		if st.bridgeContracts[chainID] != vlog.Address || len(vlog.Topics) == 0 {
 			continue
 		}
 
 		switch vlog.Topics[0].Hex() {
-		case BridgeInitiatedSignature:
-			bridgeEvent, err := decodeBridgeInitiatedEvent(vlog)
+		case BridgeInitiatedSigHash:
+			bridgeEvent, err := st.decodeBridgeInitiatedEvent(vlog)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to decode BridgeInitiated event")
 
@@ -161,7 +159,7 @@ func (*StateTransition) processReceipt(
 			}
 
 			// Validate destination chain is supported
-			if !isChainSupported(bridgeEvent.DestChain) {
+			if _, ok := st.bridgeContracts[bridgeEvent.DestChain]; !ok {
 				log.Warn().
 					Str("bridgeId", bridgeEvent.BridgeID).
 					Uint64("destChain", bridgeEvent.DestChain).
@@ -188,7 +186,7 @@ func (*StateTransition) processReceipt(
 				continue
 			}
 
-			extTx, err := createMintTransaction(
+			extTx, err := st.createMintTransaction(
 				bridgeEvent.DestChain,
 				bridgeEvent.BridgeID,
 				bridgeEvent.SourceChain,
@@ -211,21 +209,21 @@ func (*StateTransition) processReceipt(
 
 			externalTxs = append(externalTxs, extTx)
 
-		case AssetClaimedSignature:
+		case AssetClaimedSigHash:
 			if len(vlog.Topics) < 2 {
 				continue
 			}
 
 			bridgeID := vlog.Topics[1].Hex()
+			bridgeKey := []byte(bridgeID)
 
-			// Check if already completed
-			existing, err := dbtx.GetOne(BridgeEventsBucket, []byte(bridgeID))
-			if err != nil || len(existing) == 0 {
+			existing, getErr := dbtx.GetOne(BridgeEventsBucket, bridgeKey)
+			if getErr != nil || len(existing) == 0 {
 				continue
 			}
 
 			var event BridgeEvent
-			if err := json.Unmarshal(existing, &event); err != nil {
+			if unmarshalErr := json.Unmarshal(existing, &event); unmarshalErr != nil {
 				continue
 			}
 
@@ -233,12 +231,24 @@ func (*StateTransition) processReceipt(
 				continue
 			}
 
-			if err := markBridgeCompleted(dbtx, bridgeID, vlog.TxHash.Hex()); err != nil {
-				log.Error().
-					Err(err).
-					Str("bridgeId", bridgeID).
-					Msg("Failed to mark bridge completed")
+			// Update status and save
+			event.Status = BridgeStatusCompleted
+			event.ClaimTxHash = vlog.TxHash.Hex()
+
+			updatedData, err := json.Marshal(event)
+			if err != nil {
+				log.Error().Err(err).Str("bridgeId", bridgeID).Msg("Failed to marshal bridge event")
+
+				continue
 			}
+
+			if err := dbtx.Put(BridgeEventsBucket, bridgeKey, updatedData); err != nil {
+				log.Error().Err(err).Str("bridgeId", bridgeID).Msg("Failed to update bridge event")
+
+				continue
+			}
+
+			log.Info().Str("bridgeId", bridgeID).Msg("Bridge marked as completed")
 
 		default:
 			// Ignore other events
@@ -261,7 +271,9 @@ type BridgeInitiatedEvent struct {
 }
 
 // decodeBridgeInitiatedEvent decodes a BridgeInitiated event
-func decodeBridgeInitiatedEvent(vlog *types.Log) (*BridgeInitiatedEvent, error) {
+func (st *StateTransition) decodeBridgeInitiatedEvent(
+	vlog *types.Log,
+) (*BridgeInitiatedEvent, error) {
 	if len(vlog.Topics) < 4 {
 		return nil, Error("insufficient topics in BridgeInitiated event")
 	}
@@ -273,7 +285,7 @@ func decodeBridgeInitiatedEvent(vlog *types.Log) (*BridgeInitiatedEvent, error) 
 		Recipient common.Address
 	}
 
-	if err := bridgeInitiatedABI.UnpackIntoInterface(&eventData, "BridgeInitiated", vlog.Data); err != nil {
+	if err := st.bridgeABI.UnpackIntoInterface(&eventData, "BridgeInitiated", vlog.Data); err != nil {
 		return nil, err
 	}
 
@@ -290,7 +302,7 @@ func decodeBridgeInitiatedEvent(vlog *types.Log) (*BridgeInitiatedEvent, error) 
 }
 
 // createMintTransaction generates an ExternalTransaction for minting tokens on the destination chain
-func createMintTransaction(
+func (st *StateTransition) createMintTransaction(
 	destChainID uint64,
 	bridgeID string,
 	sourceChainID uint64,
@@ -298,7 +310,7 @@ func createMintTransaction(
 	amount string,
 	recipientAddress string,
 ) (apptypes.ExternalTransaction, error) {
-	payload, err := createBridgePayload(
+	payload, err := st.createBridgePayload(
 		bridgeID,
 		sourceChainID,
 		tokenAddress,
@@ -324,7 +336,7 @@ func createMintTransaction(
 
 // createBridgePayload creates the 160-byte payload for Bridge.executeTransaction()
 // Layout: bridgeId(32) | sourceChainId(32) | token(32, left-aligned) | amount(32) | recipient(32, left-aligned)
-func createBridgePayload(
+func (st *StateTransition) createBridgePayload(
 	bridgeID string,
 	sourceChainID uint64,
 	tokenAddress string,
@@ -340,9 +352,13 @@ func createBridgePayload(
 	// sourceChainId (uint256)
 	copy(payload[32:64], new(big.Int).SetUint64(sourceChainID).FillBytes(make([]byte, 32)))
 
-	// token (address, LEFT-aligned)
-	mappedToken := mapTokenAddress(tokenAddress, sourceChainID)
-	copy(payload[64:84], mappedToken[:])
+	// token (address, LEFT-aligned) - map if needed
+	token := common.HexToAddress(tokenAddress)
+	if mapped, ok := st.tokenMappings[sourceChainID][token]; ok {
+		token = mapped
+	}
+
+	copy(payload[64:84], token[:])
 
 	// amount (uint256) - parse from string to support large values
 	amountBig, ok := new(big.Int).SetString(amount, 10)
@@ -357,33 +373,6 @@ func createBridgePayload(
 	copy(payload[128:148], recipient[:])
 
 	return payload, nil
-}
-
-// isChainSupported checks if a chain ID is supported by the bridge
-func isChainSupported(chainID uint64) bool {
-	return chainID == uint64(gosdk.EthereumSepoliaChainID) ||
-		chainID == uint64(gosdk.StavangerTestnetChainID)
-}
-
-// mapTokenAddress converts token addresses for cross-chain compatibility
-func mapTokenAddress(tokenAddress string, sourceChainID uint64) common.Address {
-	const sepoliaPOL = "0x6a7c3f4b0651d6da389ad1d11d962ea458cdca70"
-
-	normalizedToken := strings.ToLower(tokenAddress)
-
-	// Sepolia → Stavanger: POL ERC20 to native
-	if normalizedToken == strings.ToLower(sepoliaPOL) &&
-		sourceChainID == uint64(gosdk.EthereumSepoliaChainID) {
-		return common.Address{}
-	}
-
-	// Stavanger → Sepolia: native to POL ERC20
-	if normalizedToken == "0x0000000000000000000000000000000000000000" &&
-		sourceChainID == uint64(gosdk.StavangerTestnetChainID) {
-		return common.HexToAddress(sepoliaPOL)
-	}
-
-	return common.HexToAddress(tokenAddress)
 }
 
 // storeBridgeEvent stores a bridge event in the database
@@ -406,42 +395,4 @@ func storeBridgeEvent(dbtx kv.RwTx, bridgeEvent *BridgeInitiatedEvent) error {
 	}
 
 	return dbtx.Put(BridgeEventsBucket, []byte(bridgeEvent.BridgeID), eventData)
-}
-
-// markBridgeCompleted updates a bridge event status to Completed
-func markBridgeCompleted(dbtx kv.RwTx, bridgeID, claimTxHash string) error {
-	bridgeKey := []byte(bridgeID)
-
-	eventData, err := dbtx.GetOne(BridgeEventsBucket, bridgeKey)
-	if err != nil {
-		return err
-	}
-
-	if len(eventData) == 0 {
-		log.Warn().Str("bridgeId", bridgeID).Msg("Bridge event not found for completion")
-
-		return nil
-	}
-
-	var event BridgeEvent
-
-	if unmarshalErr := json.Unmarshal(eventData, &event); unmarshalErr != nil {
-		return unmarshalErr
-	}
-
-	event.Status = BridgeStatusCompleted
-	event.ClaimTxHash = claimTxHash
-
-	updatedData, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-
-	if err := dbtx.Put(BridgeEventsBucket, bridgeKey, updatedData); err != nil {
-		return err
-	}
-
-	log.Info().Str("bridgeId", bridgeID).Msg("Bridge marked as completed")
-
-	return nil
 }

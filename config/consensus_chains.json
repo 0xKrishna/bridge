@@ -1,16 +1,16 @@
 [
   {
     "ChainID": 11155111,
-    "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/sepolia",
-    "APIKey": "wss://official:browNrun_blackScream@ethws-sepolia.flerken.space",
-    "StartBlock": 9752597,
+    "DBPath": "/multichain/sepolia",
+    "APIKey": "<sepolia_wss_url>",
+    "StartBlock": 9754075,
     "BlockOffset": 1
   },
   {
     "ChainID": 50591822,
-    "DBPath": "/Users/krishna/0xKrishna/bridge/multichain/stavanger",
-    "APIKey": "wss://stavanger-rpc.eu-north-2.gateway.fm/ws",
-    "StartBlock": 5523561,
+    "DBPath": "/multichain/stavanger",
+    "APIKey": "<stavenger_wss_url>",
+    "StartBlock": 5526445,
     "BlockOffset": 1
   }
 ]

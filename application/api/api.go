@@ -58,12 +58,10 @@ func (c *CustomRPC) GetBridgeStatus(ctx context.Context, params []any) (any, err
 		return nil, fmt.Errorf("failed to get bridge status: %w", err)
 	}
 
-	isClaimed, _ := application.IsBridgeClaimed(ctx, c.db, req.BridgeID)
-
 	return GetBridgeStatusResponse{
 		BridgeID:     req.BridgeID,
 		Status:       event.Status,
-		Claimed:      isClaimed,
+		Claimed:      event.Status == application.BridgeStatusCompleted,
 		SourceTxHash: event.SourceTxHash,
 		ClaimTxHash:  event.ClaimTxHash,
 	}, nil
