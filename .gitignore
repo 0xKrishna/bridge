@@ -2,3 +2,5 @@
 .vscode
 main
 data/
+config.yaml
+pelacli.yaml
