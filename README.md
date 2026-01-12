@@ -58,9 +58,8 @@ Pelagos Bridge is a cross-chain bridge that enables fast, secure token transfers
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.25+
 - Docker & Docker Compose
-- Node.js 18+ (for frontend)
 
 ### Running the Bridge
 
@@ -72,65 +71,54 @@ Pelagos Bridge is a cross-chain bridge that enables fast, secure token transfers
 
 2. **Configure environment**
    ```bash
-   # Update config files with your RPC keys
-   vim config/consensus_chains.json  # Add your RPC API keys
-   vim config/ext_networks.json      # Add network credentials
+   # Edit config files with your RPC keys and private keys
+   vim config.yaml       # Appchain configuration
+   vim pelacli.yaml      # Pelacli configuration (RPC URLs, private keys)
    ```
 
 3. **Start the bridge stack**
    ```bash
    docker compose up -d
    ```
+   OR
+    ```bash
+    make up
+    ```
 
-4. **Start the frontend** (optional)
-   ```bash
-   cd frontend
-   python3 -m http.server 8000
-   # Open http://localhost:8000
-   ```
+4. **Access the UI**
+   - Frontend: http://localhost:3000
+   - Explorer: http://localhost:3001
 
 ### Testing the Bridge
 
-#### Using the Frontend (Recommended)
+#### Using the Frontend
 
-1. Open http://localhost:8000
+1. Open http://localhost:3000
 2. Connect MetaMask
 3. Select source and destination networks
 4. Enter amount and recipient
-5. Click "Bridge with Permit" (one transaction) or "Bridge" (two transactions)
+5. Click "Bridge with Permit" (one transaction)
 
-#### Using Direct Contract Calls
 
-```javascript
-// Bridge from Sepolia to Stavanger
-const tx = await bridgeContract.bridgeAsset(
-    token,         // Token address (or address(0) for native)
-    amount,        // Amount in wei
-    50591822,      // Destination chain ID (Stavanger)
-    recipient,     // Recipient address
-    permitData     // EIP-2612 permit data (or "0x" for pre-approved)
-);
-```
 
 ## Project Structure
 
 ```
 bridge/
-├── application/          # Core bridge logic
-│   ├── state_transition.go   # Event processing & ExternalTransaction generation
+├── application/              # Core bridge logic
+│   ├── external_block_processor.go  # Event processing & ExternalTransaction generation
+│   ├── subscription.go       # Bridge contract subscriptions
 │   ├── bridge_event.go       # Bridge event data types
 │   ├── state.go              # Database query functions
 │   └── api/                  # JSON-RPC API endpoints
-├── cmd/                  # Application entry point
+├── cmd/                      # Application entry point
 │   └── main.go
-├── config/              # Configuration files
-│   ├── chain_data.json
-│   ├── consensus_chains.json
-│   └── ext_networks.json
-├── contracts/           # Solidity contracts
+├── config.yaml               # Appchain configuration
+├── pelacli.yaml              # Pelacli configuration
+├── contracts/                # Solidity contracts
 │   └── contracts/
 │       └── Bridge.sol
-└── frontend/            # Web UI
+└── frontend/                 # Web UI
     ├── index.html
     ├── app.js
     └── styles.css
@@ -145,63 +133,64 @@ The bridge automatically maps token addresses between chains:
 | Sepolia (L1) | POL ERC20 (`0x6a7c...`) | Stavanger (L2) | Native POL (`address(0)`) |
 | Stavanger (L2) | Native POL (`address(0)`) | Sepolia (L1) | POL ERC20 (`0x6a7c...`) |
 
-Token mapping logic is configurable in `application/state_transition.go` via the `tokenMappings` map.
+Token mapping logic is configurable in `application/external_block_processor.go` via the `tokenMappings` map.
 
 ## Configuration
 
-### Chain Data (`config/chain_data.json`)
+### Appchain Config (`config.yaml`)
 
-Maps chain IDs to local MDBX database paths where external chain data is stored.
+Configures the bridge appchain.
 
-```json
-{
-  "11155111": "/multichain/sepolia",
-  "50591822": "/multichain/stavanger"
-}
+```yaml
+chain_id: 42
+
+data_dir: "/data"
+
+emitter_port: ":9090"
+
+rpc_port: ":8080"
+
+log_level: 1
+
+required_chains:
+  - 11155111  # Ethereum Sepolia
+  - 50591822  # Stavanger testnet
 ```
 
-### Consensus Chains (`config/consensus_chains.json`)
+### Pelacli Config (`pelacli.yaml`)
 
-Configures which chains pelacli monitors for bridge events.
+Configures pelacli for consensus, chain monitoring, and external transaction processing.
 
-```json
-[
-  {
-    "ChainID": 11155111,
-    "DBPath": "/multichain/sepolia",
-    "APIKey": "<sepolia_wss_url>",
-    "StartBlock": 9754075,
-    "BlockOffset": 1
-  },
-  {
-    "ChainID": 50591822,
-    "DBPath": "/multichain/stavanger",
-    "APIKey": "<stavanger_wss_url>",
-    "StartBlock": 5526445,
-    "BlockOffset": 1
-  }
-]
-```
+```yaml
+data_dir: "/data"
 
-### External Networks (`config/ext_networks.json`)
+consensus:
+  ask_period: 1s
 
-Configures where pelacli sends ExternalTransactions to the Pelagos contract.
+api:
+  port: 8081
 
-```json
-[
-  {
-    "chainId": 11155111,
-    "rpcUrl": "<sepolia_rpc_url>",
-    "contractAddress": "0x049FBea1295B569378Fe0D5AB965131743f332b9",
-    "privateKey": "<private_key>"
-  },
-  {
-    "chainId": 50591822,
-    "rpcUrl": "<stavanger_rpc_url>",
-    "contractAddress": "0x416b560B03e6d9EF473bf57ccbb2A569AF5d0736",
-    "privateKey": "<private_key>"
-  }
-]
+appchains:
+  - chain_id: 42
+    address: "appchain:9090"
+
+# Chains to monitor for bridge events
+read_chains:
+  - chain_id: 50591822            # Stavanger testnet
+    api_key: "wss://stavanger-rpc.eu-north-2.gateway.fm/ws"
+    block_offset: 1
+
+# Chains to send external transactions to
+write_chains:
+  - chain_id: 11155111            # Ethereum Sepolia
+    rpc_url: "https://eth-sepolia.g.alchemy.com/v2/<api_key>"
+    private_key: "<private_key>"
+    pelagos_contract: "0x049FBea1295B569378Fe0D5AB965131743f332b9"
+
+  - chain_id: 50591822            # Stavanger testnet
+    rpc_url: "https://stavanger-rpc.eu-north-2.gateway.fm"
+    private_key: "<private_key>"
+    pelagos_contract: "0x416b560B03e6d9EF473bf57ccbb2A569AF5d0736"
 ```
 
 ⚠️ **Security:** Never commit real private keys. Use environment variables or secret management.
@@ -231,30 +220,31 @@ curl -X POST http://localhost:8080/rpc \
 
 ```bash
 # Build the appchain
-go build -o bridge ./cmd/main.go
+make build
 
 # Run tests
-go test ./...
+make tests
 
 # Run with race detection
 go test -race ./...
 
 # Lint code
-golangci-lint run
+make lints
 ```
 
 ### Adding New Chains
 
 1. Deploy Bridge.sol to the new chain
-2. Add chain config to `config/consensus_chains.json`
-3. Add network config to `config/ext_networks.json`
-4. Add chain data path to `config/chain_data.json`
-5. Update token mappings in `state_transition.go` if needed
-6. Restart the bridge appchain
+2. Add chain to `read_chains` in `pelacli.yaml`
+3. Add chain to `write_chains` in `pelacli.yaml`
+4. Add chain ID to `required_chains` in `config.yaml`
+5. Update bridge contracts and token mappings in `external_block_processor.go`
+6. Add subscription in `subscription.go`
+7. Restart the bridge stack
 
 ### Adding New Tokens
 
-1. Add token mapping in `application/state_transition.go` `tokenMappings` map
+1. Add token mapping in `application/external_block_processor.go` `tokenMappings` map
 2. Update frontend token selector (if using frontend)
 3. Restart the bridge appchain
 
@@ -304,16 +294,16 @@ Key log messages:
 ### Bridge transaction not completing
 
 1. Check pelacli is running: `docker compose ps`
-2. Check RPC connectivity: Verify API keys in `config/consensus_chains.json`
+2. Check RPC connectivity: Verify RPC URLs in `pelacli.yaml`
 3. Check logs: `docker compose logs pelacli | grep -i error`
 4. Verify liquidity: Destination bridge must have sufficient tokens
 
 ### Event not detected
 
-1. Verify event signature in `state_transition.go` matches contract
-2. Check bridge contract address in `state_transition.go` matches deployed contract
-3. Verify pelacli is monitoring the correct chain
-4. Check start block in `config/consensus_chains.json` is before the bridge transaction
+1. Verify event signature in `external_block_processor.go` matches contract
+2. Check bridge contract address in `external_block_processor.go` matches deployed contract
+3. Verify pelacli is monitoring the correct chain in `pelacli.yaml`
+4. Check `start_block` in `pelacli.yaml` is before the bridge transaction
 
 ### Frontend connection issues
 
