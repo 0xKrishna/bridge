@@ -2,234 +2,125 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/0xAtelerix/sdk/gosdk"
 	"github.com/0xAtelerix/sdk/gosdk/rpc"
-	"github.com/0xAtelerix/sdk/gosdk/txpool"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	mdbxlog "github.com/ledgerwatch/log/v3"
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/0xAtelerix/example/application"
 	"github.com/0xAtelerix/example/application/api"
 )
 
-const ChainID = 42
-
-type RuntimeArgs struct {
-	EmitterPort      string
-	AppchainDBPath   string
-	EventStreamDir   string
-	TxStreamDir      string
-	LocalDBPath      string
-	RPCPort          string
-	MultichainConfig gosdk.MultichainConfig
-	LogLevel         zerolog.Level
-}
-
 func main() {
-	// Context with cancel for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	RunCLI(ctx)
-}
-
-func RunCLI(ctx context.Context) {
-	config := gosdk.MakeAppchainConfig(ChainID, nil)
-
-	// Use a local FlagSet (no globals).
+	// Parse command line flags
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	configPath := fs.String("config", "", "Path to config.yaml (optional)")
+	_ = fs.Parse(os.Args[1:])
 
-	emitterPort := fs.String("emitter-port", config.EmitterPort, "Emitter gRPC port")
-	appchainDBPath := fs.String("db-path", config.AppchainDBPath, "Path to appchain DB")
-	streamDir := fs.String("stream-dir", config.EventStreamDir, "Event stream directory")
-	txDir := fs.String("tx-dir", config.TxStreamDir, "Transaction stream directory")
+	// Load config from file or use defaults
+	var (
+		cfg *gosdk.InitConfig
+		err error
+	)
 
-	localDBPath := fs.String("local-db-path", "./localdb", "Path to local DB")
-	rpcPort := fs.String("rpc-port", ":8080", "Port for the JSON-RPC server")
-	multichainConfigJSON := fs.String("multichain-config", "", "Multichain config JSON path")
-	logLevel := fs.Int("log-level", int(zerolog.InfoLevel), "Logging level")
-
-	if err := fs.Parse(os.Args[1:]); err != nil {
-		log.Fatal().Err(err).Msg("Failed to parse flags")
-	}
-
-	// Validate log level after parsing
-	if *logLevel > int(zerolog.Disabled) {
-		*logLevel = int(zerolog.DebugLevel)
-	} else if *logLevel < int(zerolog.TraceLevel) {
-		*logLevel = int(zerolog.TraceLevel)
-	}
-
-	var mcDbs gosdk.MultichainConfig
-
-	if *multichainConfigJSON != "" {
-		f, err := os.ReadFile(*multichainConfigJSON)
+	if *configPath != "" {
+		cfg, err = gosdk.LoadConfig(*configPath)
 		if err != nil {
-			log.Panic().Err(err).Msg("Error reading multichain config")
+			log.Fatal().Err(err).Msg("Failed to load config")
 		}
 
-		err = json.Unmarshal(f, &mcDbs)
-		if err != nil {
-			log.Warn().Err(err).Msg("Error unmarshalling multichain config")
-		}
+		log.Info().Str("config", *configPath).Msg("Loaded config")
+	} else {
+		cfg = &gosdk.InitConfig{}
+
+		log.Info().Msg("Using default config")
 	}
 
-	args := RuntimeArgs{
-		EmitterPort:      *emitterPort,
-		AppchainDBPath:   *appchainDBPath,
-		EventStreamDir:   *streamDir,
-		TxStreamDir:      *txDir,
-		LocalDBPath:      *localDBPath,
-		RPCPort:          *rpcPort,
-		LogLevel:         zerolog.Level(*logLevel),
-		MultichainConfig: mcDbs,
-	}
+	// Setup logging
+	ctx := gosdk.SetupLogger(context.Background(), cfg.LogLevel)
 
-	Run(ctx, args, nil)
-}
-
-func Run(ctx context.Context, args RuntimeArgs, _ chan<- int) {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).Level(args.LogLevel)
-
-	ctx = log.With().Logger().WithContext(ctx)
-
-	// Cancel on SIGINT/SIGTERM too (centralized; no per-runner signal goroutines needed)
+	// signal.NotifyContext provides cancellation on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	config := gosdk.MakeAppchainConfig(ChainID, args.MultichainConfig)
-
-	config.EmitterPort = args.EmitterPort
-	config.AppchainDBPath = args.AppchainDBPath
-	config.EventStreamDir = args.EventStreamDir
-	config.TxStreamDir = args.TxStreamDir
-	config.Logger = &log.Logger
-
-	chainDBs, err := gosdk.NewMultichainStateAccessSQLDB(ctx, args.MultichainConfig)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create multichain db")
+	if err := Run(ctx, cfg); err != nil {
+		log.Fatal().Err(err).Msg("Failed to run appchain")
 	}
+}
 
-	msa := gosdk.NewMultichainStateAccessSQL(chainDBs)
+// Run starts the appchain with the given config. Exported for testing.
+func Run(ctx context.Context, cfg *gosdk.InitConfig) error {
+	// Add custom tables to config
+	cfg.CustomTables = application.Tables()
 
-	// инициализируем базу на нашей стороне
-	appchainDB, err := mdbx.NewMDBX(mdbxlog.New()).
-		Path(config.AppchainDBPath).
-		WithTableCfg(func(_ kv.TableCfg) kv.TableCfg {
-			return gosdk.MergeTables(
-				gosdk.DefaultTables(),
-				application.Tables(),
-			)
-		}).Open()
+	// Stage 1: Initialize storage and config (logger comes from context)
+	appInit, err := gosdk.InitApp[application.Transaction](ctx, *cfg)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to appchain mdbx database")
+		return fmt.Errorf("init storage: %w", err)
 	}
+	defer appInit.Close()
 
-	defer appchainDB.Close()
+	// Subscribe to bridge contracts on external chains
+	application.SubscribeBridgeContracts(appInit.Storage.Subscriber())
 
-	subs, err := gosdk.NewSubscriber(ctx, appchainDB)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create subscriber")
-	}
-
-	stateTransition := gosdk.NewBatchProcesser[application.Transaction](
-		application.NewStateTransition(msa),
-		msa,
-		subs,
-	)
-
-	localDB, err := mdbx.NewMDBX(mdbxlog.New()).
-		Path(args.LocalDBPath).
-		WithTableCfg(func(_ kv.TableCfg) kv.TableCfg {
-			return txpool.Tables()
-		}).
-		Open()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to local mdbx database")
-	}
-
-	defer localDB.Close()
-
-	// fixme dynamic val set. Right now it is especially for local development with pelacli
-	valset := &gosdk.ValidatorSet{Set: map[gosdk.ValidatorID]gosdk.Stake{0: 100}}
-
-	var epochKey [4]byte
-	binary.BigEndian.PutUint32(epochKey[:], 1)
-
-	valsetData, err := cbor.Marshal(valset)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to marshal validator set data")
-	}
-
-	err = appchainDB.Update(ctx, func(tx kv.RwTx) error {
-		return tx.Put(gosdk.ValsetBucket, epochKey[:], valsetData)
-	})
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to appchain mdbx database")
-	}
-
-	txPool := txpool.NewTxPool[application.Transaction](
-		localDB,
-	)
-
-	txBatchDB, err := mdbx.NewMDBX(mdbxlog.New()).
-		Path(config.TxStreamDir).
-		WithTableCfg(func(_ kv.TableCfg) kv.TableCfg {
-			return gosdk.TxBucketsTables()
-		}).
-		Readonly().Open()
-	if err != nil {
-		log.Fatal().Str("path", config.TxStreamDir).Err(err).Msg("Failed to tx batch mdbx database")
-	}
-
-	defer txBatchDB.Close()
-
-	log.Info().Msg("Starting appchain...")
-
-	appchainExample := gosdk.NewAppchain(
-		stateTransition,
+	// Stage 2: Create appchain with batch processor
+	app := gosdk.NewAppchain(
+		appInit.Storage,
+		appInit.Config,
+		gosdk.NewDefaultBatchProcessor[application.Transaction](
+			application.NewExtBlockProcessor(appInit.Storage.Multichain()),
+			appInit.Storage.Multichain(),
+			appInit.Storage.Subscriber(),
+		),
 		application.BlockConstructor,
-		txPool,
-		config,
-		appchainDB,
-		subs,
-		msa,
-		txBatchDB,
 	)
 
-	// Run appchain in goroutine
-	runErr := make(chan error, 1)
+	// Initialize dev validator set (local development only)
+	if err := gosdk.InitDevValidatorSet(ctx, appInit.Storage.AppchainDB()); err != nil {
+		return fmt.Errorf("init dev validator set: %w", err)
+	}
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			// nothing to do
-		case runErr <- appchainExample.Run(ctx):
-			// nothing to do
-		}
-	}()
-
+	// Setup JSON-RPC server
 	rpcServer := rpc.NewStandardRPCServer(nil)
-
-	// Add logging middleware
 	rpcServer.AddMiddleware(api.NewExampleMiddleware(log.Logger))
 
-	// Add custom bridge RPC methods
-	api.NewCustomRPC(rpcServer, appchainDB).AddRPCMethods()
+	// Add standard RPC methods for explorer compatibility
+	rpc.AddStandardMethods[
+		application.Transaction,
+		application.Receipt,
+		application.Block,
+	](rpcServer, appInit.Storage.AppchainDB(), appInit.Storage.TxPool(), appInit.Config.ChainID)
 
-	if err := rpcServer.StartHTTPServer(ctx, args.RPCPort); err != nil {
-		log.Fatal().Err(err).Msg("Failed to start RPC server")
+	// Add custom bridge RPC methods
+	api.NewCustomRPC(rpcServer, appInit.Storage.AppchainDB()).AddRPCMethods()
+
+	// Error channel for goroutines
+	errCh := make(chan error, 2)
+
+	// Run appchain in background
+	go func() {
+		errCh <- app.Run(ctx)
+	}()
+
+	// Run RPC server in background
+	go func() {
+		errCh <- rpcServer.StartHTTPServer(ctx, appInit.Config.RPCPort)
+	}()
+
+	// Wait for shutdown signal or error
+	select {
+	case <-ctx.Done():
+		log.Ctx(ctx).Info().Msg("Shutdown signal received")
+
+		return nil
+	case err := <-errCh:
+		log.Ctx(ctx).Error().Err(err).Msg("Appchain error")
+
+		return err
 	}
 }

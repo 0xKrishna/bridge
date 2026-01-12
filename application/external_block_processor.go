@@ -10,6 +10,7 @@ import (
 	"github.com/0xAtelerix/sdk/gosdk/apptypes"
 	"github.com/0xAtelerix/sdk/gosdk/evmtypes"
 	"github.com/0xAtelerix/sdk/gosdk/external"
+	"github.com/0xAtelerix/sdk/gosdk/library"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -41,26 +42,23 @@ const bridgeInitiatedEventABI = `[{"anonymous":false,"inputs":[` +
 	`{"indexed":false,"internalType":"address","name":"recipient","type":"address"}],` +
 	`"name":"BridgeInitiated","type":"event"}]`
 
-var (
-	_ gosdk.StateTransitionSimplified                      = &StateTransition{}
-	_ gosdk.StateTransitionInterface[Transaction, Receipt] = gosdk.BatchProcesser[Transaction, Receipt]{}
-)
+var _ gosdk.ExternalBlockProcessor = &ExtBlockProcessor{}
 
-type StateTransition struct {
-	msa             *gosdk.MultichainStateAccessSQL
+type ExtBlockProcessor struct {
+	msa             gosdk.MultichainStateAccessor
 	bridgeABI       abi.ABI
 	bridgeContracts map[uint64]common.Address                    // chainID -> bridge contract
 	tokenMappings   map[uint64]map[common.Address]common.Address // sourceChain -> token -> destToken
 }
 
-func NewStateTransition(msa *gosdk.MultichainStateAccessSQL) *StateTransition {
+func NewExtBlockProcessor(msa gosdk.MultichainStateAccessor) *ExtBlockProcessor {
 	bridgeABI, err := abi.JSON(strings.NewReader(bridgeInitiatedEventABI))
 	if err != nil {
 		panic("failed to parse BridgeInitiated ABI: " + err.Error())
 	}
 
-	sepoliaChainID := uint64(gosdk.EthereumSepoliaChainID)
-	stavangerChainID := uint64(gosdk.StavangerTestnetChainID)
+	sepoliaChainID := uint64(library.EthereumSepoliaChainID)
+	stavangerChainID := uint64(library.StavangerTestnetChainID)
 
 	sepoliaPOL := common.HexToAddress(SepoliaPOLAddress)
 	nativeToken := common.HexToAddress(NativeTokenAddress)
@@ -77,7 +75,7 @@ func NewStateTransition(msa *gosdk.MultichainStateAccessSQL) *StateTransition {
 		stavangerChainID: {nativeToken: sepoliaPOL},
 	}
 
-	return &StateTransition{
+	return &ExtBlockProcessor{
 		msa:             msa,
 		bridgeABI:       bridgeABI,
 		bridgeContracts: bridgeContracts,
@@ -86,32 +84,32 @@ func NewStateTransition(msa *gosdk.MultichainStateAccessSQL) *StateTransition {
 }
 
 // ProcessBlock processes external chain blocks (EVM chains only)
-func (st *StateTransition) ProcessBlock(
+func (p *ExtBlockProcessor) ProcessBlock(
 	b apptypes.ExternalBlock,
 	tx kv.RwTx,
 ) ([]apptypes.ExternalTransaction, error) {
-	if _, ok := st.bridgeContracts[b.ChainID]; !ok {
+	if _, ok := p.bridgeContracts[b.ChainID]; !ok {
 		log.Warn().Uint64("chainID", b.ChainID).Msg("Unsupported chain, skipping...")
 
 		return nil, nil
 	}
 
-	return st.processEVMBlock(b, tx)
+	return p.processEVMBlock(b, tx)
 }
 
-func (st *StateTransition) processEVMBlock(
+func (p *ExtBlockProcessor) processEVMBlock(
 	b apptypes.ExternalBlock,
 	dbtx kv.RwTx,
 ) ([]apptypes.ExternalTransaction, error) {
 	var externalTxs []apptypes.ExternalTransaction
 
-	receipts, err := st.msa.EVMReceipts(context.Background(), b)
+	receipts, err := p.msa.EVMReceipts(context.Background(), b)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, r := range receipts {
-		extTxs := st.processReceipt(dbtx, r, b.ChainID)
+		extTxs := p.processReceipt(dbtx, r, b.ChainID)
 		if len(extTxs) > 0 {
 			externalTxs = append(externalTxs, extTxs...)
 		}
@@ -127,7 +125,7 @@ func (st *StateTransition) processEVMBlock(
 }
 
 // processReceipt handles Bridge events from the external chain
-func (st *StateTransition) processReceipt(
+func (p *ExtBlockProcessor) processReceipt(
 	dbtx kv.RwTx,
 	r evmtypes.Receipt,
 	chainID uint64,
@@ -136,13 +134,13 @@ func (st *StateTransition) processReceipt(
 
 	for _, vlog := range r.Logs {
 		// Check if log is from the expected bridge contract for this chain
-		if st.bridgeContracts[chainID] != vlog.Address || len(vlog.Topics) == 0 {
+		if p.bridgeContracts[chainID] != vlog.Address || len(vlog.Topics) == 0 {
 			continue
 		}
 
 		switch vlog.Topics[0].Hex() {
 		case BridgeInitiatedSigHash:
-			bridgeEvent, err := st.decodeBridgeInitiatedEvent(vlog)
+			bridgeEvent, err := p.decodeBridgeInitiatedEvent(vlog)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to decode BridgeInitiated event")
 
@@ -159,7 +157,7 @@ func (st *StateTransition) processReceipt(
 			}
 
 			// Validate destination chain is supported
-			if _, ok := st.bridgeContracts[bridgeEvent.DestChain]; !ok {
+			if _, ok := p.bridgeContracts[bridgeEvent.DestChain]; !ok {
 				log.Warn().
 					Str("bridgeId", bridgeEvent.BridgeID).
 					Uint64("destChain", bridgeEvent.DestChain).
@@ -186,7 +184,7 @@ func (st *StateTransition) processReceipt(
 				continue
 			}
 
-			extTx, err := st.createMintTransaction(
+			extTx, err := p.createMintTransaction(
 				bridgeEvent.DestChain,
 				bridgeEvent.BridgeID,
 				bridgeEvent.SourceChain,
@@ -271,7 +269,7 @@ type BridgeInitiatedEvent struct {
 }
 
 // decodeBridgeInitiatedEvent decodes a BridgeInitiated event
-func (st *StateTransition) decodeBridgeInitiatedEvent(
+func (p *ExtBlockProcessor) decodeBridgeInitiatedEvent(
 	vlog *types.Log,
 ) (*BridgeInitiatedEvent, error) {
 	if len(vlog.Topics) < 4 {
@@ -285,7 +283,7 @@ func (st *StateTransition) decodeBridgeInitiatedEvent(
 		Recipient common.Address
 	}
 
-	if err := st.bridgeABI.UnpackIntoInterface(&eventData, "BridgeInitiated", vlog.Data); err != nil {
+	if err := p.bridgeABI.UnpackIntoInterface(&eventData, "BridgeInitiated", vlog.Data); err != nil {
 		return nil, err
 	}
 
@@ -302,7 +300,7 @@ func (st *StateTransition) decodeBridgeInitiatedEvent(
 }
 
 // createMintTransaction generates an ExternalTransaction for minting tokens on the destination chain
-func (st *StateTransition) createMintTransaction(
+func (p *ExtBlockProcessor) createMintTransaction(
 	destChainID uint64,
 	bridgeID string,
 	sourceChainID uint64,
@@ -310,7 +308,7 @@ func (st *StateTransition) createMintTransaction(
 	amount string,
 	recipientAddress string,
 ) (apptypes.ExternalTransaction, error) {
-	payload, err := st.createBridgePayload(
+	payload, err := p.createBridgePayload(
 		bridgeID,
 		sourceChainID,
 		tokenAddress,
@@ -336,7 +334,7 @@ func (st *StateTransition) createMintTransaction(
 
 // createBridgePayload creates the 160-byte payload for Bridge.executeTransaction()
 // Layout: bridgeId(32) | sourceChainId(32) | token(32, left-aligned) | amount(32) | recipient(32, left-aligned)
-func (st *StateTransition) createBridgePayload(
+func (p *ExtBlockProcessor) createBridgePayload(
 	bridgeID string,
 	sourceChainID uint64,
 	tokenAddress string,
@@ -354,7 +352,7 @@ func (st *StateTransition) createBridgePayload(
 
 	// token (address, LEFT-aligned) - map if needed
 	token := common.HexToAddress(tokenAddress)
-	if mapped, ok := st.tokenMappings[sourceChainID][token]; ok {
+	if mapped, ok := p.tokenMappings[sourceChainID][token]; ok {
 		token = mapped
 	}
 

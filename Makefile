@@ -26,7 +26,7 @@ down:
 restart: down up
 
 clean:
-	rm -Rdf appchain multichain test_consensus_app test_consensus app_data pelacli_data
+	rm -Rdf data
 
 
 tidy:

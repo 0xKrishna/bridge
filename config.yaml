@@ -1,0 +1,13 @@
+chain_id: 42
+
+data_dir: "/data"
+
+emitter_port: ":9090"
+
+rpc_port: ":8080"
+
+log_level: 1
+
+required_chains:
+  - 11155111  # Ethereum Sepolia testnet
+  - 50591822  # Stavanger testnet

@@ -11,7 +11,7 @@ type Receipt struct {
 	TxStatus apptypes.TxReceiptStatus `json:"status"`
 }
 
-var _ apptypes.Receipt = Receipt{}
+var _ apptypes.Receipt = &Receipt{}
 
 func (r Receipt) TxHash() [32]byte {
 	return r.TxnHash
