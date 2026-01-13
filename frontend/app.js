@@ -120,6 +120,9 @@ async function connectWallet() {
             return;
         }
 
+        // Clear disconnected flag when user manually connects
+        localStorage.removeItem('walletDisconnected');
+
         // Request accounts
         const accounts = await window.ethereum.request({
             method: 'eth_requestAccounts'
@@ -160,6 +163,7 @@ async function connectWallet() {
 
         showStatus('Wallet connected successfully!', 'success');
         updateBalances();
+        updateFaucetBalance();
 
         // Start balance auto-refresh
         if (!balanceRefreshInterval) {
@@ -174,6 +178,10 @@ async function connectWallet() {
 }
 
 async function checkWalletConnection() {
+    // Don't auto-connect if user manually disconnected
+    if (localStorage.getItem('walletDisconnected') === 'true') {
+        return;
+    }
     if (window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
@@ -193,6 +201,7 @@ function disconnectWallet() {
     provider = null;
     signer = null;
     account = null;
+    localStorage.setItem('walletDisconnected', 'true');
     const walletBtn = document.getElementById('walletBtn');
     walletBtn.textContent = 'Connect Wallet';
     walletBtn.classList.remove('connected');
@@ -795,6 +804,93 @@ function clearHistory() {
         historyRefreshInterval = null;
     }
     loadHistory();
+}
+
+// Faucet - Mint test POL tokens on Sepolia
+async function mintTestPOL() {
+    try {
+        if (!account) {
+            showFaucetStatus('Please connect your wallet first', 'error');
+            return;
+        }
+
+        const faucetBtn = document.getElementById('faucetBtn');
+        faucetBtn.disabled = true;
+        faucetBtn.textContent = 'Minting...';
+
+        // Check if on Sepolia and switch if needed
+        const chainId = await signer.getChainId();
+        if (chainId !== CONFIG.SEPOLIA_CHAIN_ID) {
+            showFaucetStatus('Switching to Sepolia...', 'info');
+            await switchNetwork(CONFIG.SEPOLIA_CHAIN_ID);
+            // Refresh provider and signer after network switch
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+        }
+
+        showFaucetStatus('Minting 10 test POL tokens...', 'info');
+
+        const polToken = new ethers.Contract(
+            CONFIG.POL_TOKEN_SEPOLIA,
+            ['function mint(address to, uint256 amount)'],
+            signer
+        );
+
+        const mintAmount = ethers.utils.parseEther('10'); // 10 POL
+        const tx = await polToken.mint(account, mintAmount);
+
+        showFaucetStatus('Waiting for confirmation...', 'info');
+        await tx.wait();
+
+        showFaucetStatus('Successfully minted 10 test POL!', 'success');
+        updateBalances();
+        updateFaucetBalance();
+
+    } catch (error) {
+        console.error('Faucet error:', error);
+        showFaucetStatus('Faucet failed: ' + error.message, 'error');
+    } finally {
+        const faucetBtn = document.getElementById('faucetBtn');
+        faucetBtn.disabled = false;
+        faucetBtn.textContent = 'Get 10 Test POL';
+    }
+}
+
+// Show status in faucet tab
+function showFaucetStatus(message, type) {
+    const statusDiv = document.getElementById('faucetStatus');
+    statusDiv.className = `faucet-status ${type}`;
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+
+    if (type === 'success') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Update faucet balance display
+async function updateFaucetBalance() {
+    const faucetBalanceEl = document.getElementById('faucetBalance');
+    if (!account) {
+        faucetBalanceEl.textContent = 'Connect wallet';
+        return;
+    }
+
+    try {
+        const sepoliaProvider = getProvider(CONFIG.SEPOLIA_RPC);
+        const polToken = new ethers.Contract(
+            CONFIG.POL_TOKEN_SEPOLIA,
+            ['function balanceOf(address) view returns (uint256)'],
+            sepoliaProvider
+        );
+        const balance = await polToken.balanceOf(account);
+        const formatted = parseFloat(ethers.utils.formatEther(balance)).toFixed(4);
+        faucetBalanceEl.textContent = `${formatted} POL`;
+    } catch (error) {
+        faucetBalanceEl.textContent = 'Error loading';
+    }
 }
 
 // Status Messages

@@ -53,8 +53,10 @@ body {
 }
 
 .nav-brand {
+    flex: 1 1 0;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 0.75rem;
     font-weight: 700;
     font-size: 1.25rem;
@@ -85,8 +87,16 @@ body {
 }
 
 .nav-links {
+    flex: 1 1 0;
     display: flex;
+    justify-content: center;
     gap: 0.5rem;
+}
+
+.nav-wallet {
+    flex: 1 1 0;
+    display: flex;
+    justify-content: flex-end;
 }
 
 .nav-link {
@@ -293,6 +303,165 @@ body {
 
 .btn-max:hover, .btn-paste:hover {
     background: rgba(0, 128, 255, 0.2);
+}
+
+/* Faucet Button */
+.btn-faucet {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto;
+}
+
+.btn-faucet:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: scale(1.05);
+}
+
+.btn-faucet:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Faucet Tab */
+.faucet-card {
+    background: var(--bg-card);
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 40px var(--shadow-lg);
+    max-width: 480px;
+    margin: 2rem auto;
+    overflow: hidden;
+}
+
+.faucet-header {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.faucet-icon {
+    margin-bottom: 1rem;
+}
+
+.faucet-icon svg {
+    stroke: white;
+}
+
+.faucet-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.faucet-header p {
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.faucet-body {
+    padding: 1.5rem;
+}
+
+.faucet-info {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.faucet-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.faucet-info-row:last-child {
+    border-bottom: none;
+}
+
+.faucet-info-row span:first-child {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.faucet-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.btn-faucet-main {
+    width: 100%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-faucet-main:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-faucet-main:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.faucet-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.faucet-status.success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.faucet-status.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.faucet-status.info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.faucet-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    padding: 0.75rem;
+    background: #fef3c7;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    color: #92400e;
+}
+
+.faucet-note svg {
+    flex-shrink: 0;
+    stroke: #92400e;
 }
 
 /* Swap Direction */
@@ -783,11 +952,16 @@ body {
 
     .nav-links {
         order: 3;
+        flex: unset;
         width: 100%;
         justify-content: center;
     }
 
-    .bridge-card, .history-card, .faq-card {
+    .nav-brand, .nav-wallet {
+        flex: unset;
+    }
+
+    .bridge-card, .history-card, .faucet-card, .faq-card {
         padding: 1.5rem;
     }
 
