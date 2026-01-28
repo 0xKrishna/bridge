@@ -1,21 +1,43 @@
-/* Root Variables - Pelagos Official Brand Colors */
+/* Root Variables - Pelagos Design System */
 :root {
-    --primary: #0080ff;
-    --primary-dark: #0066cc;
-    --primary-light: #3399ff;
-    --secondary: #0080ff;
-    --success: #10b981;
+    /* Palette */
+    --blue-600: #1675F3;
+    --blue-400: #2F84F1;
+    --pearl: #F1F1EF;
+    --mint: #8CF2C3;
+    --yellow: #F3E96D;
+    --grey: #566874;
+    --dark: #011439;
+
+    /* RGB helpers for translucency */
+    --primary-rgb: 22, 117, 243;
+    --dark-rgb: 1, 20, 57;
+
+    /* Typography */
+    --font-body: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-heading: var(--font-body);
+
+    /* Semantic tokens */
+    --primary: var(--blue-600);
+    --primary-hover: var(--blue-400);
+    --success: var(--mint);
     --error: #ef4444;
-    --warning: #f59e0b;
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-card: #ffffff;
-    --text-primary: #0f172a;
-    --text-secondary: #64748b;
-    --text-light: #94a3b8;
-    --border: #e2e8f0;
-    --shadow: rgba(0, 0, 0, 0.1);
-    --shadow-lg: rgba(0, 0, 0, 0.15);
+
+    --bg: var(--pearl);
+    --surface: #ffffff;
+    --surface-2: rgba(var(--dark-rgb), 0.03);
+
+    --text-primary: var(--dark);
+    --text-secondary: var(--grey);
+    --text-light: rgba(var(--dark-rgb), 0.55);
+
+    --border: rgba(var(--dark-rgb), 0.12);
+    --shadow: rgba(0, 0, 0, 0.08);
+    --shadow-lg: rgba(0, 0, 0, 0.14);
+
+    /* Warning styling (from design notes) */
+    --warning: #E7A003;
+    --warning-bg: #FFF6DF;
 }
 
 * {
@@ -24,17 +46,36 @@
     box-sizing: border-box;
 }
 
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #e6f2ff;
+    font-family: var(--font-body);
+    background: var(--bg);
     min-height: 100vh;
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.5;
 }
+
+h1, h2, h3, h4,
+.brand-name {
+    font-family: var(--font-body);
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+h1 { font-size: 54px; font-weight: 700; }
+h2 { font-size: 40px; font-weight: 700; }
+h3 { font-size: 24px; font-weight: 700; }
+h4 { font-size: 16px; font-weight: 700; }
 
 /* Navbar */
 .navbar {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(241, 241, 239, 0.92);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -73,13 +114,13 @@ body {
 }
 
 .brand-name {
-    color: var(--text);
+    color: var(--text-primary);
     font-weight: 600;
 }
 
 .badge-beta {
-    background: var(--primary);
-    color: white;
+    background: var(--yellow);
+    color: var(--dark);
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
     font-size: 0.75rem;
@@ -112,33 +153,35 @@ body {
 
 .nav-link:hover {
     color: var(--primary);
-    background: rgba(0, 128, 255, 0.1);
+    background: rgba(var(--primary-rgb), 0.08);
 }
 
 .nav-link.active {
     color: var(--primary);
-    background: rgba(0, 128, 255, 0.1);
+    background: rgba(var(--primary-rgb), 0.10);
 }
 
 .btn-connect {
     background: var(--primary);
-    color: white;
+    color: #fff;
     border: none;
     padding: 0.75rem 1.5rem;
     border-radius: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
-    box-shadow: 0 4px 12px rgba(0, 128, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.28);
 }
 
 .btn-connect:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 128, 255, 0.4);
+    background: var(--primary-hover);
+    box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.34);
 }
 
 .btn-connect.connected {
-    background: var(--success);
+    background: var(--mint);
+    color: var(--dark);
 }
 
 /* Container */
@@ -159,11 +202,11 @@ body {
 
 /* Bridge Card */
 .bridge-card, .history-card, .faq-card {
-    background: #f8fafc;
+    background: var(--surface);
     border-radius: 2rem;
     padding: 2rem;
     box-shadow: none;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
 }
 
 .card-header {
@@ -172,9 +215,9 @@ body {
 }
 
 .card-header h1 {
-    font-size: 2rem;
+    font-size: 54px;
     margin-bottom: 0.5rem;
-    color: var(--primary);
+    color: var(--text-primary);
 }
 
 .subtitle {
@@ -184,11 +227,15 @@ body {
 
 /* Transfer Section */
 .transfer-section {
-    background: white;
+    background: var(--surface-2);
     border-radius: 1.25rem;
     padding: 1.5rem;
+    margin-bottom: 0;
+    border: 1px solid var(--border);
+}
+
+.swap-direction + .transfer-section {
     margin-bottom: 1rem;
-    border: 1px solid #e5e7eb;
 }
 
 .section-header {
@@ -197,7 +244,7 @@ body {
     align-items: center;
     margin-bottom: 1rem;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.875rem;
 }
 
@@ -217,8 +264,8 @@ body {
     align-items: center;
     gap: 0.75rem;
     padding: 1rem 1.25rem;
-    background: #f8fafc;
-    border: none;
+    background: rgba(var(--dark-rgb), 0.02);
+    border: 0;
     border-radius: 1rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -236,13 +283,19 @@ body {
 }
 
 .network-selector:hover {
-    background: #eef2ff;
+    background: rgba(var(--primary-rgb), 0.06);
 }
 
 .network-icon, .token-icon {
     width: 32px;
     height: 32px;
     border-radius: 50%;
+}
+
+/* Default (before network selection) shows as a grey circle */
+.network-icon {
+    background: rgba(var(--dark-rgb), 0.10);
+    border: 1px solid var(--border);
 }
 
 .network-name {
@@ -266,8 +319,8 @@ body {
     width: 100%;
     padding: 1rem 1.25rem;
     padding-right: 6rem;
-    background: #f8fafc;
-    border: none;
+    background: rgba(var(--dark-rgb), 0.02);
+    border: 0;
     border-radius: 1rem;
     font-size: 1.5rem;
     font-weight: 400;
@@ -282,7 +335,8 @@ body {
 
 .amount-input:focus, .recipient-input:focus {
     outline: none;
-    background: #eef2ff;
+    border-color: rgba(var(--primary-rgb), 0.45);
+    background: rgba(var(--primary-rgb), 0.06);
 }
 
 .btn-max, .btn-paste {
@@ -290,7 +344,7 @@ body {
     right: 0.75rem;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(0, 128, 255, 0.1);
+    background: rgba(var(--primary-rgb), 0.10);
     color: var(--primary);
     border: none;
     padding: 0.5rem 1rem;
@@ -302,7 +356,7 @@ body {
 }
 
 .btn-max:hover, .btn-paste:hover {
-    background: rgba(0, 128, 255, 0.2);
+    background: rgba(var(--primary-rgb), 0.18);
 }
 
 /* Faucet Button */
@@ -536,7 +590,7 @@ body {
 }
 
 .btn-bridge:hover:not(:disabled) {
-    background: #6d28d9;
+    background: var(--primary-hover);
 }
 
 .btn-bridge:disabled {
@@ -571,7 +625,7 @@ body {
 .info-box {
     margin-top: 1rem;
     padding: 0.875rem;
-    background: rgba(0, 128, 255, 0.05);
+    background: rgba(var(--primary-rgb), 0.06);
     border-left: 4px solid var(--primary);
     border-radius: 0.5rem;
 }
@@ -656,9 +710,9 @@ body {
 }
 
 .history-item:hover {
-    background: #eef2ff;
+    background: rgba(var(--primary-rgb), 0.06);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 128, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.10);
 }
 
 .history-info {
@@ -671,7 +725,7 @@ body {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: rgba(0, 128, 255, 0.1);
+    background: rgba(var(--primary-rgb), 0.10);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -868,12 +922,12 @@ body {
 }
 
 .network-option:hover {
-    background: rgba(0, 128, 255, 0.05);
+    background: rgba(var(--primary-rgb), 0.06);
     border-color: var(--primary);
 }
 
 .network-option.selected {
-    background: rgba(0, 128, 255, 0.1);
+    background: rgba(var(--primary-rgb), 0.10);
     border-color: var(--primary);
 }
 
@@ -912,7 +966,7 @@ body {
     margin-top: 4rem;
     padding: 2rem 1rem;
     text-align: center;
-    color: white;
+    color: var(--text-secondary);
 }
 
 .footer-content {
@@ -928,7 +982,7 @@ body {
 }
 
 .footer-links a {
-    color: white;
+    color: var(--text-secondary);
     text-decoration: none;
     opacity: 0.8;
     transition: opacity 0.2s;
@@ -945,6 +999,11 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+    h1 { font-size: 40px; }
+    h2 { font-size: 32px; }
+    h3 { font-size: 20px; }
+    h4 { font-size: 16px; }
+
     .nav-container {
         flex-wrap: wrap;
         gap: 1rem;

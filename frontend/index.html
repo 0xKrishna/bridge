@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pelagos Bridge | Cross-Chain Bridge</title>
     <link rel="icon" href="Pelagos_primary_logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -44,14 +47,14 @@
                         </div>
                         <div class="input-group">
                             <div class="network-selector" id="fromNetwork" onclick="showNetworkModal('from')">
-                                <img src="" alt="" class="network-icon" id="fromIcon">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" alt="Network" class="network-icon" id="fromIcon">
                                 <span class="network-name" id="fromName">Select Network</span>
                                 <svg class="chevron" width="20" height="20" viewBox="0 0 20 20">
                                     <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" fill="none"/>
                                 </svg>
                             </div>
                             <div class="token-selector" id="fromToken">
-                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='IBM%20Plex%20Mono' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
                                 <span>POL</span>
                             </div>
                         </div>
@@ -64,9 +67,10 @@
                     <!-- Swap Direction Button -->
                     <div class="swap-direction">
                         <button class="btn-swap" onclick="swapDirection()" title="Swap direction">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2"/>
-                                <path d="M17 14L12 9L7 14" stroke="currentColor" stroke-width="2"/>
+                            <svg width="24" height="24" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" size="16" class="css-in2lde">
+                                <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9.599 2.4v11.2l3.2-3.476M6.4 13.6V2.4L3.2 5.875"></path>
+                                </g>
                             </svg>
                         </button>
                     </div>
@@ -80,14 +84,14 @@
                         </div>
                         <div class="input-group">
                             <div class="network-selector" id="toNetwork" onclick="showNetworkModal('to')">
-                                <img src="" alt="" class="network-icon" id="toIcon">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" alt="Network" class="network-icon" id="toIcon">
                                 <span class="network-name" id="toName">Select Network</span>
                                 <svg class="chevron" width="20" height="20" viewBox="0 0 20 20">
                                     <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" fill="none"/>
                                 </svg>
                             </div>
                             <div class="token-selector" id="toToken">
-                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238247e5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='IBM%20Plex%20Mono' font-size='16' font-weight='bold'%3EPOL%3C/text%3E%3C/svg%3E" alt="POL" class="token-icon">
                                 <span>POL</span>
                             </div>
                         </div>
