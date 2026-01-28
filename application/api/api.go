@@ -15,17 +15,38 @@ import (
 type CustomRPC struct {
 	rpcServer *rpc.StandardRPCServer
 	db        kv.RoDB
+	cfg       *application.AppConfig
 }
 
-func NewCustomRPC(rpcServer *rpc.StandardRPCServer, db kv.RoDB) *CustomRPC {
+func NewCustomRPC(
+	rpcServer *rpc.StandardRPCServer,
+	db kv.RoDB,
+	cfg *application.AppConfig,
+) *CustomRPC {
 	return &CustomRPC{
 		rpcServer: rpcServer,
 		db:        db,
+		cfg:       cfg,
 	}
 }
 
 func (c *CustomRPC) AddRPCMethods() {
 	c.rpcServer.AddMethod("getBridgeStatus", c.GetBridgeStatus)
+	c.rpcServer.AddMethod("getSupportedNetworks", c.GetSupportedNetworks)
+}
+
+// GetSupportedNetworks returns the list of supported networks and their bridge contracts
+func (c *CustomRPC) GetSupportedNetworks(_ context.Context, _ []any) (any, error) {
+	networks := make([]NetworkInfo, 0, len(c.cfg.Bridge.Contracts))
+
+	for chainID, contract := range c.cfg.Bridge.Contracts {
+		networks = append(networks, NetworkInfo{
+			ChainID:  chainID,
+			Contract: contract,
+		})
+	}
+
+	return GetSupportedNetworksResponse{Networks: networks}, nil
 }
 
 // GetBridgeStatus retrieves the status of a bridge event

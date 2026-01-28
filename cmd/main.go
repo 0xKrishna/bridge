@@ -23,23 +23,12 @@ func main() {
 	_ = fs.Parse(os.Args[1:])
 
 	// Load config from file or use defaults
-	var (
-		cfg *gosdk.InitConfig
-		err error
-	)
-
-	if *configPath != "" {
-		cfg, err = gosdk.LoadConfig(*configPath)
-		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to load config")
-		}
-
-		log.Info().Str("config", *configPath).Msg("Loaded config")
-	} else {
-		cfg = &gosdk.InitConfig{}
-
-		log.Info().Msg("Using default config")
+	cfg, err := application.LoadConfig(*configPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load config")
 	}
+
+	log.Info().Msg("Config loaded")
 
 	// Setup logging
 	ctx := gosdk.SetupLogger(context.Background(), cfg.LogLevel)
@@ -54,26 +43,26 @@ func main() {
 }
 
 // Run starts the appchain with the given config. Exported for testing.
-func Run(ctx context.Context, cfg *gosdk.InitConfig) error {
+func Run(ctx context.Context, cfg *application.AppConfig) error {
 	// Add custom tables to config
 	cfg.CustomTables = application.Tables()
 
 	// Stage 1: Initialize storage and config (logger comes from context)
-	appInit, err := gosdk.InitApp[application.Transaction](ctx, *cfg)
+	appInit, err := gosdk.InitApp[application.Transaction](ctx, cfg.InitConfig)
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}
 	defer appInit.Close()
 
 	// Subscribe to bridge contracts on external chains
-	application.SubscribeBridgeContracts(appInit.Storage.Subscriber())
+	application.SubscribeBridgeContracts(appInit.Storage.Subscriber(), cfg)
 
 	// Stage 2: Create appchain with batch processor
 	app := gosdk.NewAppchain(
 		appInit.Storage,
 		appInit.Config,
 		gosdk.NewDefaultBatchProcessor[application.Transaction](
-			application.NewExtBlockProcessor(appInit.Storage.Multichain()),
+			application.NewExtBlockProcessor(appInit.Storage.Multichain(), cfg),
 			appInit.Storage.Multichain(),
 			appInit.Storage.Subscriber(),
 		),
@@ -87,7 +76,6 @@ func Run(ctx context.Context, cfg *gosdk.InitConfig) error {
 
 	// Setup JSON-RPC server
 	rpcServer := rpc.NewStandardRPCServer(nil)
-	rpcServer.AddMiddleware(api.NewExampleMiddleware(log.Logger))
 
 	// Add standard RPC methods for explorer compatibility
 	rpc.AddStandardMethods[
@@ -97,7 +85,7 @@ func Run(ctx context.Context, cfg *gosdk.InitConfig) error {
 	](rpcServer, appInit.Storage.AppchainDB(), appInit.Storage.TxPool(), appInit.Config.ChainID)
 
 	// Add custom bridge RPC methods
-	api.NewCustomRPC(rpcServer, appInit.Storage.AppchainDB()).AddRPCMethods()
+	api.NewCustomRPC(rpcServer, appInit.Storage.AppchainDB(), cfg).AddRPCMethods()
 
 	// Error channel for goroutines
 	errCh := make(chan error, 2)

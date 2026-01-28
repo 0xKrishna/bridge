@@ -46,6 +46,7 @@ func TestEndToEnd(t *testing.T) {
 	// Create required directories
 	txBatchPath := gosdk.TxBatchPathForChain(dataDir, chainID)
 	eventsPath := gosdk.EventsPath(dataDir)
+
 	require.NoError(t, os.MkdirAll(txBatchPath, 0o755))
 	require.NoError(t, os.MkdirAll(eventsPath, 0o755))
 
@@ -53,14 +54,20 @@ func TestEndToEnd(t *testing.T) {
 	err := createEmptyMDBXDatabase(txBatchPath, gosdk.TxBucketsTables())
 	require.NoError(t, err, "create empty txBatch database")
 
-	// Create test config
-	cfg := &gosdk.InitConfig{
-		ChainID:        &chainID,
-		DataDir:        dataDir,
-		EmitterPort:    ":0",
-		RPCPort:        fmt.Sprintf(":%d", port),
-		RequiredChains: []uint64{},
-		CustomTables:   application.Tables(),
+	// Create test config with embedded SDK config and bridge config
+	cfg := &application.AppConfig{
+		InitConfig: gosdk.InitConfig{
+			ChainID:        &chainID,
+			DataDir:        dataDir,
+			EmitterPort:    ":0",
+			RPCPort:        fmt.Sprintf(":%d", port),
+			RequiredChains: []uint64{},
+			CustomTables:   application.Tables(),
+		},
+		Bridge: application.BridgeConfig{
+			Contracts:     map[uint64]string{},
+			TokenMappings: map[uint64]map[string]string{},
+		},
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -78,16 +85,20 @@ func TestEndToEnd(t *testing.T) {
 
 	// Wait for HTTP service
 	rpcURL := fmt.Sprintf("http://127.0.0.1:%d/rpc", port)
+
 	waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer waitCancel()
 
 	err = waitUntil(waitCtx, func() bool {
 		req, _ := http.NewRequestWithContext(waitCtx, http.MethodGet, rpcURL, nil)
+
 		resp, respErr := http.DefaultClient.Do(req)
 		if respErr != nil {
 			return false
 		}
+
 		resp.Body.Close()
+
 		return true
 	})
 	require.NoError(t, err, "JSON-RPC service never became ready")
@@ -120,10 +131,16 @@ func TestEndToEnd(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}()
 
-	require.True(t, resp.StatusCode >= 200 && resp.StatusCode < 300, "unexpected HTTP status: %s", resp.Status)
+	require.True(
+		t,
+		resp.StatusCode >= 200 && resp.StatusCode < 300,
+		"unexpected HTTP status: %s",
+		resp.Status,
+	)
 
 	// Verify we get a valid JSON-RPC response (error expected since bridge doesn't exist)
 	var rpcResp map[string]any
+
 	err = json.NewDecoder(resp.Body).Decode(&rpcResp)
 	require.NoError(t, err, "decode rpc response")
 	// We expect an error since the bridge doesn't exist, but the RPC endpoint works

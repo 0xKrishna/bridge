@@ -11,3 +11,12 @@ type GetBridgeStatusResponse struct {
 	SourceTxHash string `json:"sourceTxHash,omitempty"`
 	ClaimTxHash  string `json:"claimTxHash,omitempty"`
 }
+
+type NetworkInfo struct {
+	ChainID  uint64 `json:"chainId"`
+	Contract string `json:"contract"`
+}
+
+type GetSupportedNetworksResponse struct {
+	Networks []NetworkInfo `json:"networks"`
+}

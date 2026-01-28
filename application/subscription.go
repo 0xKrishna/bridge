@@ -2,8 +2,8 @@ package application
 
 import (
 	"github.com/0xAtelerix/sdk/gosdk"
+	"github.com/0xAtelerix/sdk/gosdk/apptypes"
 	"github.com/0xAtelerix/sdk/gosdk/library"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/rs/zerolog/log"
 )
 
@@ -15,30 +15,21 @@ const (
 
 // SubscribeBridgeContracts registers the bridge contracts and events with the subscriber
 // so that ProcessBlock receives blocks containing events from these contracts.
-func SubscribeBridgeContracts(subscriber *gosdk.Subscriber) {
-	sepoliaContract := common.HexToAddress(BridgeContractAddressSepolia)
-	stavangerContract := common.HexToAddress(BridgeContractAddressStavanger)
+func SubscribeBridgeContracts(subscriber *gosdk.Subscriber, cfg *AppConfig) {
+	contracts := cfg.Bridge.GetBridgeContracts()
 
-	// Subscribe to bridge events on Sepolia
-	subscriber.SubscribeEthContract(
-		library.EthereumSepoliaChainID,
-		library.EthereumAddress(sepoliaContract),
-		nil,
-		library.EventTopic(BridgeInitiatedSignature),
-		library.EventTopic(AssetClaimedSignature),
-	)
+	for chainID, contractAddr := range contracts {
+		subscriber.SubscribeEthContract(
+			apptypes.ChainType(chainID),
+			library.EthereumAddress(contractAddr),
+			nil,
+			library.EventTopic(BridgeInitiatedSignature),
+			library.EventTopic(AssetClaimedSignature),
+		)
 
-	// Subscribe to bridge events on Stavanger
-	subscriber.SubscribeEthContract(
-		library.StavangerTestnetChainID,
-		library.EthereumAddress(stavangerContract),
-		nil,
-		library.EventTopic(BridgeInitiatedSignature),
-		library.EventTopic(AssetClaimedSignature),
-	)
-
-	log.Info().
-		Str("sepolia", BridgeContractAddressSepolia).
-		Str("stavanger", BridgeContractAddressStavanger).
-		Msg("Subscribed to bridge contracts and events")
+		log.Info().
+			Uint64("chainID", chainID).
+			Str("contract", contractAddr.Hex()).
+			Msg("Subscribed to bridge contract")
+	}
 }

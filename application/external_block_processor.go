@@ -10,7 +10,6 @@ import (
 	"github.com/0xAtelerix/sdk/gosdk/apptypes"
 	"github.com/0xAtelerix/sdk/gosdk/evmtypes"
 	"github.com/0xAtelerix/sdk/gosdk/external"
-	"github.com/0xAtelerix/sdk/gosdk/library"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,15 +18,6 @@ import (
 )
 
 const (
-	// Bridge contract addresses
-	BridgeContractAddressSepolia   = "0x844E740Ea7F404c6208fd85Ee6114a14F8037df7"
-	BridgeContractAddressStavanger = "0x3C1c8351a09DB0300786148B56EcB7be2FaA322e"
-
-	// Token addresses
-	SepoliaPOLAddress  = "0x6a7c3f4b0651d6da389ad1d11d962ea458cdca70"
-	NativeTokenAddress = "0x0000000000000000000000000000000000000000"
-
-	// Event signature hashes
 	BridgeInitiatedSigHash = "0xa43a2e0bb4454dc2f20f4a34be7549f0e1b00e4f5e88805c729900e40471a0cb"
 	AssetClaimedSigHash    = "0x260120404c049bd806f3d5d3444295a9eab7f94112fdec90a6072ad39acae708"
 )
@@ -51,35 +41,20 @@ type ExtBlockProcessor struct {
 	tokenMappings   map[uint64]map[common.Address]common.Address // sourceChain -> token -> destToken
 }
 
-func NewExtBlockProcessor(msa gosdk.MultichainStateAccessor) *ExtBlockProcessor {
+func NewExtBlockProcessor(
+	msa gosdk.MultichainStateAccessor,
+	cfg *AppConfig,
+) *ExtBlockProcessor {
 	bridgeABI, err := abi.JSON(strings.NewReader(bridgeInitiatedEventABI))
 	if err != nil {
 		panic("failed to parse BridgeInitiated ABI: " + err.Error())
 	}
 
-	sepoliaChainID := uint64(library.EthereumSepoliaChainID)
-	stavangerChainID := uint64(library.StavangerTestnetChainID)
-
-	sepoliaPOL := common.HexToAddress(SepoliaPOLAddress)
-	nativeToken := common.HexToAddress(NativeTokenAddress)
-
-	bridgeContracts := map[uint64]common.Address{
-		sepoliaChainID:   common.HexToAddress(BridgeContractAddressSepolia),
-		stavangerChainID: common.HexToAddress(BridgeContractAddressStavanger),
-	}
-
-	tokenMappings := map[uint64]map[common.Address]common.Address{
-		// Sepolia -> Stavanger: POL ERC20 -> native
-		sepoliaChainID: {sepoliaPOL: nativeToken},
-		// Stavanger -> Sepolia: native -> POL ERC20
-		stavangerChainID: {nativeToken: sepoliaPOL},
-	}
-
 	return &ExtBlockProcessor{
 		msa:             msa,
 		bridgeABI:       bridgeABI,
-		bridgeContracts: bridgeContracts,
-		tokenMappings:   tokenMappings,
+		bridgeContracts: cfg.Bridge.GetBridgeContracts(),
+		tokenMappings:   cfg.Bridge.GetTokenMappings(),
 	}
 }
 
@@ -119,7 +94,8 @@ func (p *ExtBlockProcessor) processEVMBlock(
 		Uint64("chainID", b.ChainID).
 		Uint64("blockNumber", b.BlockNumber).
 		Int("receipts", len(receipts)).
-		Msg("Processed EVM External block")
+		Int("extTxs", len(externalTxs)).
+		Msg("Processed EVM external block")
 
 	return externalTxs, nil
 }
@@ -166,24 +142,19 @@ func (p *ExtBlockProcessor) processReceipt(
 				continue
 			}
 
-			// Skip if already processed (handles restarts/reorgs)
-			existing, err := dbtx.GetOne(BridgeEventsBucket, []byte(bridgeEvent.BridgeID))
+			// Skip if already processed
+			exists, err := dbtx.GetOne(BridgeEventsBucket, []byte(bridgeEvent.BridgeID))
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to check existing bridge event")
 
 				continue
 			}
 
-			if len(existing) > 0 {
+			if len(exists) > 0 {
 				continue
 			}
 
-			if storeErr := storeBridgeEvent(dbtx, bridgeEvent); storeErr != nil {
-				log.Error().Err(storeErr).Msg("Failed to store bridge event")
-
-				continue
-			}
-
+			// Create ExtTx for the destination chain
 			extTx, err := p.createMintTransaction(
 				bridgeEvent.DestChain,
 				bridgeEvent.BridgeID,
@@ -193,9 +164,20 @@ func (p *ExtBlockProcessor) processReceipt(
 				bridgeEvent.Recipient,
 			)
 			if err != nil {
-				log.Error().Err(err).Msg("Failed to create mint transaction")
+				log.Error().Err(err).Str("bridgeId", bridgeEvent.BridgeID).
+					Msg("Failed to create mint transaction")
 
 				continue
+			}
+
+			// Store event as Confirmed
+			if storeErr := storeBridgeEvent(dbtx, bridgeEvent); storeErr != nil {
+				log.Error().
+					Err(storeErr).
+					Str("bridgeId", bridgeEvent.BridgeID).
+					Msg("Failed to store event")
+
+				continue // Don't return ExtTx if store fails
 			}
 
 			log.Info().
