@@ -80,7 +80,7 @@
                         <div class="section-header">
                             <span>To</span>
                             <span class="balance" id="toBalance">Balance: --</span>
-                            <span class="liquidity" id="bridgeLiquidity" style="color: #10b981; font-size: 0.75rem;">Liquidity: --</span>
+                            <span class="liquidity" id="bridgeLiquidity">Liquidity: --</span>
                         </div>
                         <div class="input-group">
                             <div class="network-selector" id="toNetwork" onclick="showNetworkModal('to')">
@@ -95,9 +95,11 @@
                                 <span>POL</span>
                             </div>
                         </div>
-                        <div class="recipient-input-wrapper">
-                            <input type="text" id="recipientInput" class="recipient-input" placeholder="Recipient address (optional)">
-                            <button class="btn-paste" onclick="useConnectedAddress()">Use My Address</button>
+                        <div class="destination-address" id="destinationAddress">
+                            <span class="destination-label">To:</span>
+                            <span class="destination-value" id="destinationValue">Connect wallet</span>
+                            <input type="text" id="recipientInput" class="recipient-input-inline" placeholder="Enter address" style="display: none;">
+                            <button class="btn-change-recipient" id="btnChangeRecipient" onclick="toggleRecipientEdit()" style="display: none;">Change</button>
                         </div>
                     </div>
 
@@ -228,12 +230,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-        </div>
-    </footer>
 
     <script src="app.js"></script>
 </body>

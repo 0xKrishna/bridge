@@ -47,6 +47,8 @@ let currentToNetwork = null;
 let modalTarget = null;
 let fromBalance = null;
 let toBalance = null;
+let bridgeLiquidity = null;
+let walletEventsBound = false; // Prevent duplicate event listeners
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -62,10 +64,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // Set default route: Sepolia → Stavanger
+    setDefaultNetworks();
+
     setupEventListeners();
     checkWalletConnection();
     loadHistory();
 });
+
+function setDefaultNetworks() {
+    currentFromNetwork = 'sepolia';
+    currentToNetwork = 'stavanger';
+
+    const fromNetwork = NETWORKS[currentFromNetwork];
+    const toNetwork = NETWORKS[currentToNetwork];
+
+    document.getElementById('fromIcon').src = fromNetwork.icon;
+    document.getElementById('fromName').textContent = fromNetwork.name;
+    document.getElementById('toIcon').src = toNetwork.icon;
+    document.getElementById('toName').textContent = toNetwork.name;
+}
 
 function setupEventListeners() {
     // Tab switching
@@ -77,13 +95,16 @@ function setupEventListeners() {
     });
 
     // Amount input validation
-    document.getElementById('amountInput').addEventListener('input', (e) => {
+    document.getElementById('amountInput').addEventListener('input', () => {
         updateBridgeSummary();
         validateBridgeButton();
     });
 
     // Recipient input
-    document.getElementById('recipientInput').addEventListener('input', () => {
+    document.getElementById('recipientInput').addEventListener('input', (e) => {
+        // Clear error state when typing
+        e.target.classList.remove('error');
+        e.target.placeholder = 'Enter address';
         validateBridgeButton();
     });
 }
@@ -135,31 +156,12 @@ async function connectWallet() {
         // Update UI
         updateWalletUI();
 
-        // Set default networks if not set
-        if (!currentFromNetwork) {
-            selectNetwork('sepolia', true);
+        // Bind wallet events only once to prevent accumulation
+        if (!walletEventsBound) {
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+            window.ethereum.on('chainChanged', handleChainChanged);
+            walletEventsBound = true;
         }
-        if (!currentToNetwork) {
-            selectNetwork('stavanger', true);
-        }
-
-        // Listen for account changes
-        window.ethereum.on('accountsChanged', (accounts) => {
-            if (accounts.length === 0) {
-                disconnectWallet();
-            } else {
-                account = accounts[0];
-                updateWalletUI();
-                updateBalances();
-            }
-        });
-
-        // Listen for chain changes - update provider instead of reloading
-        window.ethereum.on('chainChanged', () => {
-            provider = new ethers.providers.Web3Provider(window.ethereum);
-            signer = provider.getSigner();
-            updateBalances();
-        });
 
         showStatus('Wallet connected successfully!', 'success');
         updateBalances();
@@ -168,13 +170,28 @@ async function connectWallet() {
         // Start balance auto-refresh
         if (!balanceRefreshInterval) {
             balanceRefreshInterval = setInterval(updateBalances, BALANCE_REFRESH_MS);
-            console.log('Balance auto-refresh started');
         }
 
     } catch (error) {
         console.error('Wallet connection error:', error);
         showStatus('Failed to connect wallet: ' + error.message, 'error');
     }
+}
+
+function handleAccountsChanged(accounts) {
+    if (accounts.length === 0) {
+        disconnectWallet();
+    } else {
+        account = accounts[0];
+        updateWalletUI();
+        updateBalances();
+    }
+}
+
+function handleChainChanged() {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    updateBalances();
 }
 
 async function checkWalletConnection() {
@@ -192,9 +209,59 @@ async function checkWalletConnection() {
 
 function updateWalletUI() {
     const walletBtn = document.getElementById('walletBtn');
+    const changeBtn = document.getElementById('btnChangeRecipient');
     walletBtn.textContent = `${account.substring(0, 6)}...${account.substring(38)}`;
     walletBtn.classList.add('connected');
+    changeBtn.style.display = 'inline';
+    updateDestinationAddress();
     validateBridgeButton();
+}
+
+function updateDestinationAddress() {
+    const destinationValue = document.getElementById('destinationValue');
+    const recipientInput = document.getElementById('recipientInput');
+    const customRecipient = recipientInput.value.trim();
+
+    if (customRecipient && ethers.utils.isAddress(customRecipient)) {
+        destinationValue.textContent = `${customRecipient.substring(0, 6)}...${customRecipient.substring(38)}`;
+    } else if (account) {
+        destinationValue.textContent = `${account.substring(0, 6)}...${account.substring(38)} (you)`;
+    } else {
+        destinationValue.textContent = 'Connect wallet';
+    }
+}
+
+function toggleRecipientEdit() {
+    const destinationValue = document.getElementById('destinationValue');
+    const recipientInput = document.getElementById('recipientInput');
+    const changeBtn = document.getElementById('btnChangeRecipient');
+    const isEditing = recipientInput.style.display !== 'none';
+
+    if (isEditing) {
+        const inputValue = recipientInput.value.trim();
+
+        // Validate if user entered something
+        if (inputValue && !ethers.utils.isAddress(inputValue)) {
+            // Invalid address - show error and keep editing
+            recipientInput.classList.add('error');
+            recipientInput.placeholder = 'Invalid address';
+            return;
+        }
+
+        // Valid or empty - close editing
+        recipientInput.classList.remove('error');
+        recipientInput.placeholder = 'Enter address';
+        recipientInput.style.display = 'none';
+        destinationValue.style.display = 'inline';
+        changeBtn.textContent = 'Change';
+        updateDestinationAddress();
+    } else {
+        // Start editing - hide address and show input
+        destinationValue.style.display = 'none';
+        recipientInput.style.display = 'inline-block';
+        recipientInput.focus();
+        changeBtn.textContent = 'Done';
+    }
 }
 
 function disconnectWallet() {
@@ -203,8 +270,17 @@ function disconnectWallet() {
     account = null;
     localStorage.setItem('walletDisconnected', 'true');
     const walletBtn = document.getElementById('walletBtn');
+    const changeBtn = document.getElementById('btnChangeRecipient');
     walletBtn.textContent = 'Connect Wallet';
     walletBtn.classList.remove('connected');
+    changeBtn.style.display = 'none';
+    // Reset recipient input state
+    const recipientInput = document.getElementById('recipientInput');
+    const destinationValue = document.getElementById('destinationValue');
+    recipientInput.style.display = 'none';
+    recipientInput.value = '';
+    destinationValue.style.display = 'inline';
+    updateDestinationAddress();
     validateBridgeButton();
 }
 
@@ -336,7 +412,7 @@ async function updateBalances() {
 
         fromBalance = fromBal;
         toBalance = toBal;
-        window.bridgeLiquidity = liquidity;
+        bridgeLiquidity = liquidity;
 
         // Update UI
         const fromBalFormatted = parseFloat(ethers.utils.formatEther(fromBalance)).toFixed(4);
@@ -390,13 +466,6 @@ function setMaxAmount() {
     validateBridgeButton();
 }
 
-function useConnectedAddress() {
-    if (account) {
-        document.getElementById('recipientInput').value = account;
-        validateBridgeButton();
-    }
-}
-
 // Bridge Summary
 function updateBridgeSummary() {
     const amount = document.getElementById('amountInput').value;
@@ -426,7 +495,7 @@ function validateBridgeButton() {
     } else if (!recipient || !ethers.utils.isAddress(recipient)) {
         bridgeBtn.disabled = true;
         bridgeBtn.textContent = 'Invalid Recipient';
-    } else if (window.bridgeLiquidity && ethers.utils.parseEther(amount).gt(window.bridgeLiquidity)) {
+    } else if (bridgeLiquidity && ethers.utils.parseEther(amount).gt(bridgeLiquidity)) {
         bridgeBtn.disabled = true;
         bridgeBtn.textContent = '⚠️ Insufficient Liquidity';
     } else {
