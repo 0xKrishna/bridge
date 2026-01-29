@@ -6,8 +6,6 @@ services:
     volumes:
       - ./data:/data
       - ./pelacli.yaml:/config/pelacli.yaml:ro
-    ports:
-      - "8081:8081"
     command:
       - consensus
       - --config=/config/pelacli.yaml
@@ -39,17 +37,6 @@ services:
       - "3000:80"
     depends_on:
       - appchain
-
-  explorer:
-    image: pelagosnetwork/explorer:latest
-    ports:
-      - "3001:3000"
-    environment:
-      - RPC_URL=http://appchain:8080/rpc
-      - EXTERNAL_RPC_URL=http://pelacli:8081/rpc
-    depends_on:
-      - appchain
-      - pelacli
 
   prometheus:
     profiles: ["monitoring"]

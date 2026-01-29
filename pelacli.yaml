@@ -3,9 +3,6 @@ data_dir: "/data"
 consensus:
   ask_period: 1s
 
-api:
-  port: 8081
-
 appchains:
   - chain_id: 42
     address: "appchain:9090"
